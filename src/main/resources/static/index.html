@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文化遗产交流平台</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="hero">
+        <div class="hero__overlay"></div>
+        <div class="hero__content container">
+            <div>
+                <p class="eyebrow">Heritage Exchange Platform</p>
+                <h1>文化遗产交流平台</h1>
+                <p class="hero__text">
+                    面向文化遗产主题的图文分享社区。我们先聚焦文章、照片、评论和基础用户功能，
+                    做一个简单、清晰、能直接演示的版本。
+                </p>
+                <div class="hero__actions">
+                    <button class="primary-btn" @click="navigate('home')">浏览文章</button>
+                    <button class="ghost-btn" @click="navigate('publish')">发布内容</button>
+                </div>
+            </div>
+            <div class="hero__panel card">
+                <p class="panel-title">当前状态</p>
+                <p v-if="currentUser">已登录：<strong>{{ currentUser.nickname }}</strong></p>
+                <p v-else>还没有登录，可以先注册一个演示账号。</p>
+                <div class="tag-list">
+                    <span class="tag">图文发布</span>
+                    <span class="tag">文化分类</span>
+                    <span class="tag">评论互动</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container layout">
+        <aside class="sidebar card">
+            <button class="nav-btn" :class="{ active: currentView === 'home' }" @click="navigate('home')">首页文章</button>
+            <button class="nav-btn" :class="{ active: currentView === 'publish' }" @click="navigate('publish')">发布文章</button>
+            <button class="nav-btn" :class="{ active: currentView === 'auth' }" @click="navigate('auth')">注册 / 登录</button>
+            <button class="nav-btn" :class="{ active: currentView === 'detail' }" @click="navigate('detail')" :disabled="!selectedPostId">文章详情</button>
+
+            <div class="sidebar-block">
+                <p class="block-title">筛选分类</p>
+                <select v-model="selectedCategoryFilter">
+                    <option value="">全部分类</option>
+                    <option v-for="category in categories" :key="category.id" :value="category.name">
+                        {{ category.name }}
+                    </option>
+                </select>
+            </div>
+
+            <div class="sidebar-block">
+                <p class="block-title">当前用户</p>
+                <p v-if="currentUser">{{ currentUser.nickname }} (#{{ currentUser.id }})</p>
+                <p v-else>未登录</p>
+                <button v-if="currentUser" class="ghost-btn small" @click="logout">退出登录</button>
+            </div>
+        </aside>
+
+        <section class="content">
+            <div v-if="loading" class="card empty-state">加载中...</div>
+            <div v-if="successMessage" class="message success">{{ successMessage }}</div>
+            <div v-if="errorMessage" class="message error">{{ errorMessage }}</div>
+
+            <section v-show="currentView === 'home'" class="view-stack">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Article Feed</p>
+                        <h2>文化遗产文章</h2>
+                    </div>
+                    <button class="ghost-btn" @click="fetchPosts">刷新列表</button>
+                </div>
+
+                <div class="post-grid">
+                    <article v-for="post in filteredPosts" :key="post.id" class="post-card card">
+                        <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }">
+                            <span class="tag">{{ post.categoryName }}</span>
+                        </div>
+                        <div class="post-card__body">
+                            <h3>{{ post.title }}</h3>
+                            <p class="muted">{{ post.heritageName || '未填写遗产名称' }} · {{ post.region || '未填写地区' }}</p>
+                            <p class="muted">作者：{{ post.authorName }}</p>
+                            <div class="meta-row">
+                                <span>评论 {{ post.commentCount }}</span>
+                                <span>{{ formatDate(post.createdAt) }}</span>
+                            </div>
+                            <button class="primary-btn small" @click="openPost(post.id)">查看详情</button>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-if="filteredPosts.length === 0" class="card empty-state">
+                    现在还没有符合条件的文章，可以先去发布一篇。
+                </div>
+            </section>
+
+            <section v-show="currentView === 'detail'" class="view-stack">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Post Detail</p>
+                        <h2>文章详情</h2>
+                    </div>
+                    <button class="ghost-btn" @click="navigate('home')">返回列表</button>
+                </div>
+
+                <div v-if="selectedPost" class="card detail-card">
+                    <div class="detail-cover" :style="{ backgroundImage: buildCover(selectedPost.coverImageUrl) }"></div>
+                    <h2>{{ selectedPost.title }}</h2>
+                    <p class="muted">{{ selectedPost.categoryName }} · {{ selectedPost.heritageName || '未填写遗产名称' }} · {{ selectedPost.region || '未填写地区' }}</p>
+                    <p class="muted">作者：{{ selectedPost.authorName }} · 发布时间：{{ formatDate(selectedPost.createdAt) }}</p>
+                    <div class="detail-content">{{ selectedPost.content }}</div>
+
+                    <div class="image-gallery" v-if="selectedPost.imageUrls && selectedPost.imageUrls.length">
+                        <img v-for="image in selectedPost.imageUrls" :key="image" :src="resolveAsset(image)" alt="文章配图">
+                    </div>
+
+                    <div class="comment-section">
+                        <div class="section-head compact">
+                            <h3>评论区</h3>
+                            <span>{{ selectedPost.commentCount }} 条评论</span>
+                        </div>
+                        <div v-if="selectedPost.comments && selectedPost.comments.length" class="comment-list">
+                            <div v-for="comment in selectedPost.comments" :key="comment.id" class="comment-item">
+                                <strong>{{ comment.authorNickname }}</strong>
+                                <span>{{ formatDate(comment.createdAt) }}</span>
+                                <p>{{ comment.content }}</p>
+                            </div>
+                        </div>
+                        <p v-else class="muted">还没有评论。</p>
+
+                        <form class="comment-form" @submit.prevent="submitComment">
+                            <textarea v-model="commentForm.content" placeholder="写下你对这项文化遗产的看法..." rows="4"></textarea>
+                            <button class="primary-btn small" type="submit">发表评论</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div v-else class="card empty-state">先从文章列表中选择一篇文章。</div>
+            </section>
+
+            <section v-show="currentView === 'publish'" class="view-stack">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Create Post</p>
+                        <h2>发布图文</h2>
+                    </div>
+                </div>
+
+                <form class="card form-card" @submit.prevent="submitPost">
+                    <div class="form-grid">
+                        <label>
+                            标题
+                            <input v-model="postForm.title" type="text" placeholder="例如：苏绣的针法之美">
+                        </label>
+                        <label>
+                            文化遗产名称
+                            <input v-model="postForm.heritageName" type="text" placeholder="例如：苏绣">
+                        </label>
+                        <label>
+                            所属地区
+                            <input v-model="postForm.region" type="text" placeholder="例如：江苏苏州">
+                        </label>
+                        <label>
+                            所属分类
+                            <select v-model="postForm.categoryId">
+                                <option value="">请选择分类</option>
+                                <option v-for="category in categories" :key="category.id" :value="String(category.id)">
+                                    {{ category.name }}
+                                </option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <label>
+                        正文内容
+                        <textarea v-model="postForm.content" rows="8" placeholder="介绍这项文化遗产的历史、工艺、价值等"></textarea>
+                    </label>
+
+                    <label>
+                        上传封面图片
+                        <input type="file" accept="image/*" @change="handleCoverUpload">
+                    </label>
+                    <p class="muted" v-if="postForm.coverImageUrl">封面地址：{{ postForm.coverImageUrl }}</p>
+
+                    <label>
+                        上传正文配图
+                        <input type="file" accept="image/*" multiple @change="handleGalleryUpload">
+                    </label>
+                    <div class="tag-list" v-if="postForm.imageUrls.length">
+                        <span class="tag" v-for="image in postForm.imageUrls" :key="image">{{ image.split('/').pop() }}</span>
+                    </div>
+
+                    <button class="primary-btn" type="submit">发布文章</button>
+                </form>
+            </section>
+
+            <section v-show="currentView === 'auth'" class="view-stack">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow">Account</p>
+                        <h2>注册 / 登录</h2>
+                    </div>
+                </div>
+
+                <div class="auth-grid">
+                    <form class="card form-card" @submit.prevent="register">
+                        <h3>注册</h3>
+                        <label>
+                            用户名
+                            <input v-model="registerForm.username" type="text" placeholder="至少 4 位">
+                        </label>
+                        <label>
+                            昵称
+                            <input v-model="registerForm.nickname" type="text" placeholder="显示给其他用户">
+                        </label>
+                        <label>
+                            密码
+                            <input v-model="registerForm.password" type="password" placeholder="至少 6 位">
+                        </label>
+                        <button class="primary-btn" type="submit">注册账号</button>
+                    </form>
+
+                    <form class="card form-card" @submit.prevent="login">
+                        <h3>登录</h3>
+                        <label>
+                            用户名
+                            <input v-model="loginForm.username" type="text" placeholder="输入用户名">
+                        </label>
+                        <label>
+                            密码
+                            <input v-model="loginForm.password" type="password" placeholder="输入密码">
+                        </label>
+                        <button class="ghost-btn" type="submit">登录</button>
+                    </form>
+                </div>
+            </section>
+        </section>
+    </main>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
