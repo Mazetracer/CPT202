@@ -1,243 +1,730 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文化遗产交流平台</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Heritage Exchange Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div id="app" v-cloak>
-    <header class="hero">
-        <div class="hero__overlay"></div>
-        <div class="hero__content container">
-            <div>
-                <p class="eyebrow">Heritage Exchange Platform</p>
-                <h1>文化遗产交流平台</h1>
-                <p class="hero__text">
-                    面向文化遗产主题的图文分享社区。我们先聚焦文章、照片、评论和基础用户功能，
-                    做一个简单、清晰、能直接演示的版本。
-                </p>
-                <div class="hero__actions">
-                    <button class="primary-btn" @click="navigate('home')">浏览文章</button>
-                    <button class="ghost-btn" @click="navigate('publish')">发布内容</button>
-                </div>
-            </div>
-            <div class="hero__panel card">
-                <p class="panel-title">当前状态</p>
-                <p v-if="currentUser">已登录：<strong>{{ currentUser.nickname }}</strong></p>
-                <p v-else>还没有登录，可以先注册一个演示账号。</p>
-                <div class="tag-list">
-                    <span class="tag">图文发布</span>
-                    <span class="tag">文化分类</span>
-                    <span class="tag">评论互动</span>
-                </div>
+    <header class="topbar">
+        <div class="container topbar__inner">
+            <button class="brand" type="button" @click="navigate('home')">
+                <span class="brand__crest">H</span>
+                <span>
+                    <strong>Heritage Exchange</strong>
+                    <small>Stories, craft, and memory</small>
+                </span>
+            </button>
+
+            <nav class="topnav" aria-label="Primary navigation">
+                <button class="topnav__link" :class="{ active: currentView === 'home' }" type="button" @click="navigate('home')">
+                    Home
+                </button>
+                <button class="topnav__link" :class="{ active: currentView === 'publish' }" type="button" @click="navigate('publish')">
+                    Publish
+                </button>
+                <button v-if="isAdmin" class="topnav__link" :class="{ active: currentView === 'admin' }" type="button" @click="navigate('admin')">
+                    Admin
+                </button>
+            </nav>
+
+            <div class="topbar__account">
+                <template v-if="currentUser">
+                    <div class="account-pill">
+                        <span class="account-pill__label">Signed in as</span>
+                        <strong>{{ translateNickname(currentUser.nickname) }}</strong>
+                    </div>
+                    <div class="account-actions">
+                        <button class="ghost-btn small" type="button" @click="navigate('profile')">Profile</button>
+                        <button class="primary-btn small" type="button" @click="logout">Sign out</button>
+                    </div>
+                </template>
+                <button v-else class="primary-btn small" type="button" @click="navigate('auth')">Sign in</button>
             </div>
         </div>
     </header>
 
-    <main class="container layout">
-        <aside class="sidebar card">
-            <button class="nav-btn" :class="{ active: currentView === 'home' }" @click="navigate('home')">首页文章</button>
-            <button class="nav-btn" :class="{ active: currentView === 'publish' }" @click="navigate('publish')">发布文章</button>
-            <button class="nav-btn" :class="{ active: currentView === 'auth' }" @click="navigate('auth')">注册 / 登录</button>
-            <button class="nav-btn" :class="{ active: currentView === 'detail' }" @click="navigate('detail')" :disabled="!selectedPostId">文章详情</button>
-
-            <div class="sidebar-block">
-                <p class="block-title">筛选分类</p>
-                <select v-model="selectedCategoryFilter">
-                    <option value="">全部分类</option>
-                    <option v-for="category in categories" :key="category.id" :value="category.name">
-                        {{ category.name }}
-                    </option>
-                </select>
+    <section v-if="currentView === 'home'" class="hero">
+        <div class="hero__texture"></div>
+        <div class="container hero__grid">
+            <div class="hero__copy">
+                <p class="eyebrow">Living Heritage Archive</p>
+                <h1>Build a richer front-end archive for essays, collections, and editorial workflows.</h1>
+                <p class="hero__text">
+                    This version expands the platform into a fuller front-end demonstration with homepage search,
+                    popularity ranking, category statistics, a personal workspace, and a static administrator console.
+                </p>
+                <div class="hero__actions">
+                    <button class="primary-btn" type="button" @click="navigate('home')">Open homepage</button>
+                    <button class="ghost-btn" type="button" @click="focusCollections">Browse collections</button>
+                </div>
             </div>
 
-            <div class="sidebar-block">
-                <p class="block-title">当前用户</p>
-                <p v-if="currentUser">{{ currentUser.nickname }} (#{{ currentUser.id }})</p>
-                <p v-else>未登录</p>
-                <button v-if="currentUser" class="ghost-btn small" @click="logout">退出登录</button>
+            <aside class="hero__card card">
+                <p class="eyebrow">Platform Snapshot</p>
+                <h2>A front-end structure ready for richer course project demos.</h2>
+                <p>
+                    The interface now includes a searchable homepage, category board, publish page,
+                    personal workspace, article detail view, and an administrator preview.
+                </p>
+                <div class="hero__stats">
+                    <div>
+                        <strong>{{ totalStories }}</strong>
+                        <span>Stories</span>
+                    </div>
+                    <div>
+                        <strong>{{ categories.length }}</strong>
+                        <span>Collections</span>
+                    </div>
+                    <div>
+                        <strong>{{ totalContributors }}</strong>
+                        <span>Contributors</span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <main class="container main-shell" :class="{ 'main-shell--home': currentView === 'home' }">
+        <section v-if="currentView === 'home'" class="toolbar card">
+            <div class="toolbar__left">
+                <div class="toolbar__hint">
+                    <p class="toolbar__label">Current Mode</p>
+                    <strong>{{ currentViewLabel }}</strong>
+                </div>
+                <div class="toolbar__hint">
+                    <p class="toolbar__label">Archive Scale</p>
+                    <strong>{{ totalStories }} stories across {{ categories.length }} collections</strong>
+                </div>
             </div>
-        </aside>
 
-        <section class="content">
-            <div v-if="loading" class="card empty-state">加载中...</div>
-            <div v-if="successMessage" class="message success">{{ successMessage }}</div>
-            <div v-if="errorMessage" class="message error">{{ errorMessage }}</div>
+            <div class="toolbar__right">
+                <div class="message-inline">
+                    <span class="message-inline__label">Status</span>
+                    <strong>{{ currentUser ? 'Signed in and ready to manage your workspace' : 'Guest mode enabled. Sign in to access publishing and profile views.' }}</strong>
+                </div>
+            </div>
+        </section>
 
-            <section v-show="currentView === 'home'" class="view-stack">
+        <div v-if="loading" class="card empty-state">Loading...</div>
+        <div v-if="successMessage" class="message success">{{ successMessage }}</div>
+        <div v-if="errorMessage" class="message error">{{ errorMessage }}</div>
+
+        <section v-show="currentView === 'home'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Homepage</p>
+                    <h2>Search, ranking, and archive overview</h2>
+                </div>
+                <button class="ghost-btn" type="button" @click="fetchPosts">Refresh data</button>
+            </div>
+
+            <div class="metric-grid">
+                <article class="card metric-card">
+                    <span class="metric-card__label">Total stories</span>
+                    <strong class="metric-card__value">{{ totalStories }}</strong>
+                    <p class="metric-card__detail">Published articles currently visible in the front-end archive.</p>
+                </article>
+                <article class="card metric-card">
+                    <span class="metric-card__label">Discussion activity</span>
+                    <strong class="metric-card__value">{{ totalComments }}</strong>
+                    <p class="metric-card__detail">Comment count used to support homepage momentum and ranking.</p>
+                </article>
+                <article class="card metric-card">
+                    <span class="metric-card__label">Contributors</span>
+                    <strong class="metric-card__value">{{ totalContributors }}</strong>
+                    <p class="metric-card__detail">Distinct author names appearing across the current story feed.</p>
+                </article>
+            </div>
+
+            <div class="home-shell">
+                <section class="card search-panel">
+                    <p class="eyebrow dark">Archive Search</p>
+                    <h3>Search articles by title, place, category, or contributor.</h3>
+                    <div class="search-panel__controls">
+                        <input v-model="homeSearchQuery" type="text" placeholder="Search the archive">
+                        <select v-model="selectedCategoryFilter">
+                            <option value="">All collections</option>
+                            <option v-for="category in categories" :key="category.id" :value="category.name">
+                                {{ translateCategory(category.name) }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="tag-list">
+                        <span class="story-chip">{{ filteredPosts.length }} results</span>
+                        <button class="ghost-btn small" type="button" @click="clearHomeSearch">Clear filters</button>
+                    </div>
+                </section>
+
+                <aside class="card ranking-card">
+                    <p class="eyebrow dark">Hot Ranking</p>
+                    <h3>Popular stories this week</h3>
+                    <ol class="ranking-list">
+                        <li v-for="(post, index) in hotPosts" :key="post.id">
+                            <button class="ranking-item" type="button" @click="openPost(post.id)">
+                                <span class="ranking-item__index">{{ index + 1 }}</span>
+                                <span class="ranking-item__body">
+                                    <strong>{{ translateText(post.title) }}</strong>
+                                    <small>{{ translateCategory(post.categoryName) }} · {{ buildHeatScore(post) }} heat</small>
+                                </span>
+                            </button>
+                        </li>
+                    </ol>
+                </aside>
+            </div>
+
+            <article v-if="featuredPost" class="featured-story card">
+                <div class="featured-story__cover" :style="{ backgroundImage: buildCover(featuredPost.coverImageUrl) }"></div>
+                <div class="featured-story__body">
+                    <span class="story-chip">{{ translateCategory(featuredPost.categoryName) }}</span>
+                    <h3>{{ translateText(featuredPost.title) }}</h3>
+                    <p class="featured-story__meta">
+                        {{ translateHeritageName(featuredPost.heritageName) }} · {{ translateRegion(featuredPost.region) }}
+                    </p>
+                    <p class="muted">
+                        By {{ translateNickname(featuredPost.authorName) }} · {{ formatDate(featuredPost.createdAt) }}
+                    </p>
+                    <button class="primary-btn small" type="button" @click="openPost(featuredPost.id)">Read article</button>
+                </div>
+            </article>
+
+            <section class="card category-stats-card">
+                <div class="section-head compact">
+                    <div>
+                        <p class="eyebrow dark">Category Statistics</p>
+                        <h3>Distribution across collections</h3>
+                    </div>
+                    <button class="ghost-btn small" type="button" @click="focusCollections">Browse collections below</button>
+                </div>
+                <div class="stats-grid">
+                    <article v-for="stat in categoryStats" :key="stat.name" class="stats-card">
+                        <div class="stats-card__top">
+                            <strong>{{ translateCategory(stat.name) }}</strong>
+                            <span>{{ stat.count }} articles</span>
+                        </div>
+                        <p>{{ translateText(stat.description) }}</p>
+                        <div class="stat-bar">
+                            <span :style="{ width: stat.percentage + '%' }"></span>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
+                    </article>
+                </div>
+            </section>
+
+            <section ref="homeCollectionsSection" class="view-stack">
                 <div class="section-head">
                     <div>
-                        <p class="eyebrow">Article Feed</p>
-                        <h2>文化遗产文章</h2>
+                        <p class="eyebrow dark">Collection Overview</p>
+                        <h2>Browse categories inside the homepage</h2>
                     </div>
-                    <button class="ghost-btn" @click="fetchPosts">刷新列表</button>
                 </div>
 
-                <div class="post-grid">
-                    <article v-for="post in filteredPosts" :key="post.id" class="post-card card">
-                        <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }">
-                            <span class="tag">{{ post.categoryName }}</span>
+                <div class="category-grid">
+                    <article v-for="stat in categoryStats" :key="stat.name" class="card collection-card">
+                        <span class="story-chip">{{ stat.count }} items</span>
+                        <h3>{{ translateCategory(stat.name) }}</h3>
+                        <p class="muted">{{ translateText(stat.description) }}</p>
+                        <div class="collection-card__meta">
+                            <span>Top story</span>
+                            <strong>{{ stat.topPost ? translateText(stat.topPost.title) : 'Waiting for submissions' }}</strong>
                         </div>
-                        <div class="post-card__body">
-                            <h3>{{ post.title }}</h3>
-                            <p class="muted">{{ post.heritageName || '未填写遗产名称' }} · {{ post.region || '未填写地区' }}</p>
-                            <p class="muted">作者：{{ post.authorName }}</p>
-                            <div class="meta-row">
-                                <span>评论 {{ post.commentCount }}</span>
-                                <span>{{ formatDate(post.createdAt) }}</span>
-                            </div>
-                            <button class="primary-btn small" @click="openPost(post.id)">查看详情</button>
+                        <div class="collection-card__actions">
+                            <button class="primary-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
+                            <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(stat.name)">Use in search</button>
                         </div>
                     </article>
                 </div>
 
-                <div v-if="filteredPosts.length === 0" class="card empty-state">
-                    现在还没有符合条件的文章，可以先去发布一篇。
-                </div>
+                <section class="card category-showcase" v-if="focusedCategory">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Collection Focus</p>
+                            <h3>{{ translateCategory(focusedCategory) }}</h3>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(focusedCategory)">Use in homepage search</button>
+                    </div>
+
+                    <div class="post-grid">
+                        <article v-for="post in focusedCategoryPosts" :key="post.id" class="post-card card">
+                            <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }"></div>
+                            <div class="post-card__body">
+                                <h3>{{ translateText(post.title) }}</h3>
+                                <p class="muted">{{ translateHeritageName(post.heritageName) }} · {{ translateRegion(post.region) }}</p>
+                                <div class="meta-row">
+                                    <span>{{ buildHeatScore(post) }} heat</span>
+                                    <span>{{ formatShortDate(post.createdAt) }}</span>
+                                </div>
+                                <button class="ghost-btn small" type="button" @click="openPost(post.id)">View article</button>
+                            </div>
+                        </article>
+                    </div>
+                </section>
             </section>
 
-            <section v-show="currentView === 'detail'" class="view-stack">
-                <div class="section-head">
-                    <div>
-                        <p class="eyebrow">Post Detail</p>
-                        <h2>文章详情</h2>
-                    </div>
-                    <button class="ghost-btn" @click="navigate('home')">返回列表</button>
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Browse Articles</p>
+                    <h2>Search results and recent stories</h2>
                 </div>
+            </div>
 
-                <div v-if="selectedPost" class="card detail-card">
+            <div class="post-grid">
+                <article v-for="post in filteredPosts" :key="post.id" class="post-card card">
+                    <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }">
+                        <span class="story-chip">{{ translateCategory(post.categoryName) }}</span>
+                    </div>
+                    <div class="post-card__body">
+                        <h3>{{ translateText(post.title) }}</h3>
+                        <p class="muted">{{ translateHeritageName(post.heritageName) }} · {{ translateRegion(post.region) }}</p>
+                        <p class="muted">By {{ translateNickname(post.authorName) }}</p>
+                        <div class="meta-row">
+                            <span>{{ post.commentCount }} comments</span>
+                            <span>{{ formatShortDate(post.createdAt) }}</span>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="openPost(post.id)">View article</button>
+                    </div>
+                </article>
+            </div>
+
+            <div v-if="filteredPosts.length === 0" class="card empty-state">
+                No articles match the current homepage search yet.
+            </div>
+        </section>
+
+        <section v-show="currentView === 'detail'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Reading Room</p>
+                    <h2>Article Detail</h2>
+                </div>
+                <div class="section-head__actions">
+                    <button class="ghost-btn small" type="button" @click="navigate('home')">Back to homepage</button>
+                </div>
+            </div>
+
+            <div v-if="selectedPost" class="detail-layout">
+                <article class="card detail-card">
                     <div class="detail-cover" :style="{ backgroundImage: buildCover(selectedPost.coverImageUrl) }"></div>
-                    <h2>{{ selectedPost.title }}</h2>
-                    <p class="muted">{{ selectedPost.categoryName }} · {{ selectedPost.heritageName || '未填写遗产名称' }} · {{ selectedPost.region || '未填写地区' }}</p>
-                    <p class="muted">作者：{{ selectedPost.authorName }} · 发布时间：{{ formatDate(selectedPost.createdAt) }}</p>
-                    <div class="detail-content">{{ selectedPost.content }}</div>
+                    <span class="story-chip">{{ translateCategory(selectedPost.categoryName) }}</span>
+                    <h2>{{ translateText(selectedPost.title) }}</h2>
+                    <p class="muted">
+                        {{ translateHeritageName(selectedPost.heritageName) }} · {{ translateRegion(selectedPost.region) }}
+                    </p>
+                    <p class="muted">
+                        By {{ translateNickname(selectedPost.authorName) }} · {{ formatDate(selectedPost.createdAt) }}
+                    </p>
+                    <div class="detail-content">{{ translateText(selectedPost.content) }}</div>
 
                     <div class="image-gallery" v-if="selectedPost.imageUrls && selectedPost.imageUrls.length">
-                        <img v-for="image in selectedPost.imageUrls" :key="image" :src="resolveAsset(image)" alt="文章配图">
+                        <img v-for="image in selectedPost.imageUrls" :key="image" :src="resolveAsset(image)" alt="Article illustration">
+                    </div>
+                </article>
+
+                <aside class="card detail-side">
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Collection</p>
+                        <strong>{{ translateCategory(selectedPost.categoryName) }}</strong>
+                    </div>
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Discussion</p>
+                        <strong>{{ selectedPost.commentCount }} comments</strong>
+                    </div>
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Popularity</p>
+                        <strong>{{ buildHeatScore(selectedPost) }} heat</strong>
                     </div>
 
                     <div class="comment-section">
                         <div class="section-head compact">
-                            <h3>评论区</h3>
-                            <span>{{ selectedPost.commentCount }} 条评论</span>
+                            <h3>Conversation</h3>
                         </div>
+
                         <div v-if="selectedPost.comments && selectedPost.comments.length" class="comment-list">
                             <div v-for="comment in selectedPost.comments" :key="comment.id" class="comment-item">
-                                <strong>{{ comment.authorNickname }}</strong>
+                                <strong>{{ translateNickname(comment.authorNickname) }}</strong>
                                 <span>{{ formatDate(comment.createdAt) }}</span>
-                                <p>{{ comment.content }}</p>
+                                <p>{{ translateText(comment.content) }}</p>
                             </div>
                         </div>
-                        <p v-else class="muted">还没有评论。</p>
+                        <p v-else class="muted">No comments yet.</p>
 
                         <form class="comment-form" @submit.prevent="submitComment">
-                            <textarea v-model="commentForm.content" placeholder="写下你对这项文化遗产的看法..." rows="4"></textarea>
-                            <button class="primary-btn small" type="submit">发表评论</button>
+                            <textarea v-model="commentForm.content" rows="4" placeholder="Write a thoughtful response to this heritage story..."></textarea>
+                            <button class="primary-btn small" type="submit">Post comment</button>
                         </form>
                     </div>
+                </aside>
+            </div>
+
+            <div v-else class="card empty-state">Select an article from the archive first.</div>
+        </section>
+
+        <section v-show="currentView === 'publish'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Contribution Desk</p>
+                    <h2>Publish a New Article</h2>
                 </div>
+            </div>
 
-                <div v-else class="card empty-state">先从文章列表中选择一篇文章。</div>
-            </section>
-
-            <section v-show="currentView === 'publish'" class="view-stack">
-                <div class="section-head">
-                    <div>
-                        <p class="eyebrow">Create Post</p>
-                        <h2>发布图文</h2>
-                    </div>
-                </div>
-
+            <div class="form-layout">
                 <form class="card form-card" @submit.prevent="submitPost">
                     <div class="form-grid">
                         <label>
-                            标题
-                            <input v-model="postForm.title" type="text" placeholder="例如：苏绣的针法之美">
+                            Title
+                            <input v-model="postForm.title" type="text" placeholder="For example: The Needlework Elegance of Suzhou Embroidery">
                         </label>
                         <label>
-                            文化遗产名称
-                            <input v-model="postForm.heritageName" type="text" placeholder="例如：苏绣">
+                            Heritage Item
+                            <input v-model="postForm.heritageName" type="text" placeholder="For example: Suzhou Embroidery">
                         </label>
                         <label>
-                            所属地区
-                            <input v-model="postForm.region" type="text" placeholder="例如：江苏苏州">
+                            Region
+                            <input v-model="postForm.region" type="text" placeholder="For example: Suzhou, Jiangsu">
                         </label>
                         <label>
-                            所属分类
+                            Collection
                             <select v-model="postForm.categoryId">
-                                <option value="">请选择分类</option>
+                                <option value="">Choose a collection</option>
                                 <option v-for="category in categories" :key="category.id" :value="String(category.id)">
-                                    {{ category.name }}
+                                    {{ translateCategory(category.name) }}
                                 </option>
                             </select>
                         </label>
                     </div>
 
                     <label>
-                        正文内容
-                        <textarea v-model="postForm.content" rows="8" placeholder="介绍这项文化遗产的历史、工艺、价值等"></textarea>
+                        Story Text
+                        <textarea v-model="postForm.content" rows="8" placeholder="Describe the history, technique, cultural value, and visual details of the heritage item."></textarea>
                     </label>
 
                     <label>
-                        上传封面图片
-                        <input type="file" accept="image/*" @change="handleCoverUpload">
+                        Upload Cover Image
+                        <div class="file-picker">
+                            <input ref="coverFileInput" class="file-picker__input" type="file" accept="image/*" @change="handleCoverUpload">
+                            <button class="ghost-btn small" type="button" @click="triggerFilePicker('coverFileInput')">Choose file</button>
+                            <span class="file-picker__name">{{ coverFileLabel }}</span>
+                        </div>
                     </label>
-                    <p class="muted" v-if="postForm.coverImageUrl">封面地址：{{ postForm.coverImageUrl }}</p>
+                    <p class="muted" v-if="postForm.coverImageUrl">Cover ready: {{ postForm.coverImageUrl }}</p>
 
                     <label>
-                        上传正文配图
-                        <input type="file" accept="image/*" multiple @change="handleGalleryUpload">
+                        Upload Gallery Images
+                        <div class="file-picker">
+                            <input ref="galleryFileInput" class="file-picker__input" type="file" accept="image/*" multiple @change="handleGalleryUpload">
+                            <button class="ghost-btn small" type="button" @click="triggerFilePicker('galleryFileInput')">Choose files</button>
+                            <span class="file-picker__name">{{ galleryFileLabel }}</span>
+                        </div>
                     </label>
                     <div class="tag-list" v-if="postForm.imageUrls.length">
-                        <span class="tag" v-for="image in postForm.imageUrls" :key="image">{{ image.split('/').pop() }}</span>
+                        <span class="story-chip" v-for="image in postForm.imageUrls" :key="image">{{ image.split('/').pop() }}</span>
                     </div>
 
-                    <button class="primary-btn" type="submit">发布文章</button>
+                    <button class="primary-btn" type="submit">Publish article</button>
                 </form>
-            </section>
 
-            <section v-show="currentView === 'auth'" class="view-stack">
-                <div class="section-head">
-                    <div>
-                        <p class="eyebrow">Account</p>
-                        <h2>注册 / 登录</h2>
+                <aside class="card guide-card">
+                    <p class="eyebrow dark">Editorial Guidance</p>
+                    <h3>What makes a strong heritage article?</h3>
+                    <ul class="guide-list">
+                        <li>Explain historical context before describing visual details.</li>
+                        <li>Use photography to document materials, tools, motifs, or architecture.</li>
+                        <li>Keep the tone respectful, precise, and culturally grounded.</li>
+                    </ul>
+                </aside>
+            </div>
+        </section>
+
+        <section v-show="currentView === 'profile'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Personal Workspace</p>
+                    <h2>Profile, submissions, drafts, and requests</h2>
+                </div>
+            </div>
+
+            <div v-if="!currentUser" class="card empty-state">
+                Sign in to open your personal workspace and view published stories, pending review items, drafts, and permission requests.
+            </div>
+
+            <template v-else>
+                <div class="profile-shell">
+                    <section class="card profile-hero">
+                        <div class="profile-hero__main">
+                            <div class="profile-avatar">{{ userInitials(currentUser.nickname) }}</div>
+                            <div>
+                                <p class="eyebrow dark">Contributor Identity</p>
+                                <h2>{{ translateNickname(currentUser.nickname) }}</h2>
+                                <p class="muted">{{ isAdmin ? 'Administrator account' : 'Contributor account' }}</p>
+                            </div>
+                        </div>
+                        <div class="profile-hero__stats">
+                            <div>
+                                <strong>{{ profileSummary.published }}</strong>
+                                <span>Published</span>
+                            </div>
+                            <div>
+                                <strong>{{ profileSummary.pending }}</strong>
+                                <span>Pending</span>
+                            </div>
+                            <div>
+                                <strong>{{ profileSummary.drafts }}</strong>
+                                <span>Drafts</span>
+                            </div>
+                            <div>
+                                <strong>{{ profileSummary.requests }}</strong>
+                                <span>Requests</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <aside class="card profile-note">
+                        <p class="eyebrow dark">Workspace Note</p>
+                        <h3>Front-end only preview</h3>
+                        <p>
+                            This area shows how a later backend can support personal dashboards for published work,
+                            review queues, drafts, and permission applications without changing the visual structure again.
+                        </p>
+                    </aside>
+                </div>
+
+                <div class="tab-row">
+                    <button class="tab-btn" :class="{ active: profileSection === 'published' }" type="button" @click="selectProfileSection('published')">Published Articles</button>
+                    <button class="tab-btn" :class="{ active: profileSection === 'pending' }" type="button" @click="selectProfileSection('pending')">Pending Review</button>
+                    <button class="tab-btn" :class="{ active: profileSection === 'drafts' }" type="button" @click="selectProfileSection('drafts')">Draft Box</button>
+                    <button class="tab-btn" :class="{ active: profileSection === 'permissions' }" type="button" @click="selectProfileSection('permissions')">Permission Requests</button>
+                </div>
+
+                <div v-if="profileSection === 'published'" class="list-grid">
+                    <article v-for="entry in profilePublishedPosts" :key="entry.id" class="card entry-card">
+                        <span class="story-chip">{{ translateCategory(entry.categoryName) }}</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateHeritageName(entry.heritageName) }} · {{ translateRegion(entry.region) }}</p>
+                        <div class="entry-card__meta">
+                            <span>{{ entry.commentCount || 0 }} comments</span>
+                            <span>{{ formatShortDate(entry.createdAt) }}</span>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-else-if="profileSection === 'pending'" class="list-grid">
+                    <article v-for="entry in workspacePending" :key="entry.id" class="card entry-card">
+                        <span class="status-chip status-chip--pending-review">Pending Review</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
+                        <p>{{ entry.note }}</p>
+                        <div class="entry-card__meta">
+                            <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-else-if="profileSection === 'drafts'" class="list-grid">
+                    <article v-for="entry in workspaceDrafts" :key="entry.id" class="card entry-card">
+                        <span class="status-chip status-chip--draft">Draft</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
+                        <p>{{ entry.note }}</p>
+                        <div class="entry-card__meta">
+                            <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
+                        </div>
+                    </article>
+                </div>
+
+                <div v-else class="request-grid">
+                    <article v-for="entry in permissionRequests" :key="entry.id" class="card request-card">
+                        <div class="request-card__top">
+                            <h3>{{ entry.title }}</h3>
+                            <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
+                        </div>
+                        <p>{{ entry.note }}</p>
+                        <div class="entry-card__meta">
+                            <span>Submitted {{ formatShortDate(entry.createdAt) }}</span>
+                        </div>
+                    </article>
+
+                    <article class="card request-card request-card--action">
+                        <p class="eyebrow dark">Apply for Access</p>
+                        <h3>Permission application shortcuts</h3>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Curator Review Access')">Request curator access</button>
+                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Extended Publishing Rights')">Request publishing rights</button>
+                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Category Editor Access')">Request category editor access</button>
+                        </div>
+                    </article>
+                </div>
+            </template>
+        </section>
+
+        <section v-show="currentView === 'admin'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Administrator Page</p>
+                    <h2>Article management, user management, and approvals</h2>
+                </div>
+            </div>
+
+            <div v-if="!isAdmin" class="card empty-state">
+                Sign in with the administrator account to preview the administration interface.
+            </div>
+
+            <template v-else>
+                <div class="metric-grid">
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Managed articles</span>
+                        <strong class="metric-card__value">{{ adminArticles.length }}</strong>
+                        <p class="metric-card__detail">A front-end table for review, draft, and published states.</p>
+                    </article>
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Managed users</span>
+                        <strong class="metric-card__value">{{ adminUsersView.length }}</strong>
+                        <p class="metric-card__detail">Preview table for contributor roles and account states.</p>
+                    </article>
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Approval queue</span>
+                        <strong class="metric-card__value">{{ adminApprovalsView.length }}</strong>
+                        <p class="metric-card__detail">Role requests and article review items awaiting decisions.</p>
+                    </article>
+                </div>
+
+                <div class="tab-row">
+                    <button class="tab-btn" :class="{ active: adminSection === 'articles' }" type="button" @click="selectAdminSection('articles')">Article Management</button>
+                    <button class="tab-btn" :class="{ active: adminSection === 'users' }" type="button" @click="selectAdminSection('users')">User Management</button>
+                    <button class="tab-btn" :class="{ active: adminSection === 'approvals' }" type="button" @click="selectAdminSection('approvals')">Approvals</button>
+                </div>
+
+                <section v-if="adminSection === 'articles'" class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Article Management</p>
+                            <h3>Review article states and archive ordering</h3>
+                        </div>
                     </div>
-                </div>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Collection</th>
+                                <th>Author</th>
+                                <th>Status</th>
+                                <th>Updated</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="row in adminArticles" :key="row.id">
+                                <td>{{ translateText(row.title) }}</td>
+                                <td>{{ translateCategory(row.categoryName) }}</td>
+                                <td>{{ translateNickname(row.authorName) }}</td>
+                                <td><span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
+                                <td>{{ formatShortDate(row.updatedAt) }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                <div class="auth-grid">
-                    <form class="card form-card" @submit.prevent="register">
-                        <h3>注册</h3>
-                        <label>
-                            用户名
-                            <input v-model="registerForm.username" type="text" placeholder="至少 4 位">
-                        </label>
-                        <label>
-                            昵称
-                            <input v-model="registerForm.nickname" type="text" placeholder="显示给其他用户">
-                        </label>
-                        <label>
-                            密码
-                            <input v-model="registerForm.password" type="password" placeholder="至少 6 位">
-                        </label>
-                        <button class="primary-btn" type="submit">注册账号</button>
-                    </form>
+                <section v-else-if="adminSection === 'users'" class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">User Management</p>
+                            <h3>Review roles, activity, and account states</h3>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Display name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Contributions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="row in adminUsersView" :key="row.id">
+                                <td>{{ row.username }}</td>
+                                <td>{{ translateNickname(row.nickname) }}</td>
+                                <td>{{ row.role }}</td>
+                                <td>{{ row.status }}</td>
+                                <td>{{ row.contributions }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
 
-                    <form class="card form-card" @submit.prevent="login">
-                        <h3>登录</h3>
-                        <label>
-                            用户名
-                            <input v-model="loginForm.username" type="text" placeholder="输入用户名">
-                        </label>
-                        <label>
-                            密码
-                            <input v-model="loginForm.password" type="password" placeholder="输入密码">
-                        </label>
-                        <button class="ghost-btn" type="submit">登录</button>
-                    </form>
+                <section v-else class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Approval Queue</p>
+                            <h3>Requests and review items waiting for action</h3>
+                        </div>
+                    </div>
+                    <div class="approval-list">
+                        <article v-for="row in adminApprovalsView" :key="row.id" class="approval-card">
+                            <div class="approval-card__top">
+                                <h3>{{ row.title }}</h3>
+                                <span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                            </div>
+                            <p class="muted">{{ row.type }} · {{ row.applicant }}</p>
+                            <div class="entry-card__meta">
+                                <span>Submitted {{ formatShortDate(row.submittedAt) }}</span>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+            </template>
+        </section>
+
+        <section v-show="currentView === 'auth'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Account Access</p>
+                    <h2>Register or Sign In</h2>
                 </div>
-            </section>
+            </div>
+
+            <div class="auth-grid">
+                <form class="card form-card" @submit.prevent="register">
+                    <h3>Create an account</h3>
+                    <label>
+                        Username
+                        <input v-model="registerForm.username" type="text" placeholder="At least 4 characters">
+                    </label>
+                    <label>
+                        Display Name
+                        <input v-model="registerForm.nickname" type="text" placeholder="How your name will appear">
+                    </label>
+                    <label>
+                        Password
+                        <input v-model="registerForm.password" type="password" placeholder="At least 6 characters">
+                    </label>
+                    <button class="primary-btn" type="submit">Register</button>
+                </form>
+
+                <form class="card form-card" @submit.prevent="login">
+                    <h3>Sign in</h3>
+                    <label>
+                        Username
+                        <input v-model="loginForm.username" type="text" placeholder="Enter your username">
+                    </label>
+                    <label>
+                        Password
+                        <input v-model="loginForm.password" type="password" placeholder="Enter your password">
+                    </label>
+                    <button class="ghost-btn" type="submit">Sign in</button>
+                </form>
+            </div>
         </section>
     </main>
 </div>
