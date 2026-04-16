@@ -2,6 +2,7 @@ package com.heritage.platform.config;
 
 import com.heritage.platform.common.ApiResponse;
 import com.heritage.platform.common.BadRequestException;
+import com.heritage.platform.common.ForbiddenException;
 import com.heritage.platform.common.ResourceNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({BadRequestException.class, ConstraintViolationException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex) {
         return ResponseEntity.badRequest().body(ApiResponse.failure(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

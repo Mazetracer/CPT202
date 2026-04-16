@@ -76,4 +76,8 @@ public class User extends BaseTimeEntity {
     public Boolean getActive() {
         return active;
     }
+
+    public void changeRole(UserRole role) {
+        this.role = role;
+    }
 }

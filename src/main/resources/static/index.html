@@ -29,7 +29,7 @@
                     Home
                 </button>
                 <button class="topnav__link" :class="{ active: currentView === 'publish' }" type="button" @click="navigate('publish')">
-                    Publish
+                    Drafts
                 </button>
                 <button v-if="isAdmin" class="topnav__link" :class="{ active: currentView === 'admin' }" type="button" @click="navigate('admin')">
                     Admin
@@ -60,7 +60,7 @@
                 <h1>Build a richer front-end archive for essays, collections, and editorial workflows.</h1>
                 <p class="hero__text">
                     This version expands the platform into a fuller front-end demonstration with homepage search,
-                    popularity ranking, category statistics, a personal workspace, and a static administrator console.
+                    popularity ranking, category statistics, a personal workspace, and a lightweight administrator console.
                 </p>
                 <div class="hero__actions">
                     <button class="primary-btn" type="button" @click="navigate('home')">Open homepage</button>
@@ -72,8 +72,8 @@
                 <p class="eyebrow">Platform Snapshot</p>
                 <h2>A front-end structure ready for richer course project demos.</h2>
                 <p>
-                    The interface now includes a searchable homepage, category board, publish page,
-                    personal workspace, article detail view, and an administrator preview.
+                    The interface now includes a searchable homepage, category board, draft desk,
+                    personal workspace, article detail view, and an administrator workspace.
                 </p>
                 <div class="hero__stats">
                     <div>
@@ -109,7 +109,7 @@
             <div class="toolbar__right">
                 <div class="message-inline">
                     <span class="message-inline__label">Status</span>
-                    <strong>{{ currentUser ? 'Signed in and ready to manage your workspace' : 'Guest mode enabled. Sign in to access publishing and profile views.' }}</strong>
+                    <strong>{{ currentUser ? 'Signed in and ready to manage drafts, reviews, and published articles.' : 'Guest mode enabled. Sign in to access draft and profile views.' }}</strong>
                 </div>
             </div>
         </section>
@@ -371,12 +371,17 @@
             <div class="section-head">
                 <div>
                     <p class="eyebrow dark">Contribution Desk</p>
-                    <h2>Publish a New Article</h2>
+                    <h2>{{ editingPostId ? 'Edit Draft or Rejected Article' : 'Create a Draft' }}</h2>
                 </div>
             </div>
 
             <div class="form-layout">
                 <form class="card form-card" @submit.prevent="submitPost">
+                    <div class="message-inline">
+                        <span class="message-inline__label">Workflow</span>
+                        <strong>{{ editingPostId ? 'Current status: ' + statusLabel(editingPostStatus) + '. Save changes here before submitting for review.' : 'Save a draft first, then submit it for review.' }}</strong>
+                    </div>
+                    <p v-if="editingRejectReason" class="muted">Latest rejection reason: {{ editingRejectReason }}</p>
                     <div class="form-grid">
                         <label>
                             Title
@@ -428,7 +433,11 @@
                         <span class="story-chip" v-for="image in postForm.imageUrls" :key="image">{{ image.split('/').pop() }}</span>
                     </div>
 
-                    <button class="primary-btn" type="submit">Publish article</button>
+                    <div class="request-actions">
+                        <button class="primary-btn" type="submit">{{ publishPrimaryLabel }}</button>
+                        <button v-if="canSubmitForReview" class="ghost-btn" type="button" @click="submitCurrentPostForReview">Submit for review</button>
+                        <button v-if="editingPostId" class="ghost-btn" type="button" @click="resetPostEditor">New draft</button>
+                    </div>
                 </form>
 
                 <aside class="card guide-card">
@@ -488,10 +497,9 @@
 
                     <aside class="card profile-note">
                         <p class="eyebrow dark">Workspace Note</p>
-                        <h3>Front-end only preview</h3>
+                        <h3>Review-aware workspace</h3>
                         <p>
-                            This area shows how a later backend can support personal dashboards for published work,
-                            review queues, drafts, and permission applications without changing the visual structure again.
+                            Use this workspace to track draft saves, review submissions, and published articles without leaving the current front-end flow.
                         </p>
                     </aside>
                 </div>
@@ -509,55 +517,66 @@
                         <h3>{{ translateText(entry.title) }}</h3>
                         <p class="muted">{{ translateHeritageName(entry.heritageName) }} · {{ translateRegion(entry.region) }}</p>
                         <div class="entry-card__meta">
+                            <span>{{ statusLabel(entry.status) }}</span>
                             <span>{{ entry.commentCount || 0 }} comments</span>
                             <span>{{ formatShortDate(entry.createdAt) }}</span>
                         </div>
                     </article>
+                    <div v-if="!profilePublishedPosts.length" class="card empty-state">No published articles yet.</div>
                 </div>
 
                 <div v-else-if="profileSection === 'pending'" class="list-grid">
                     <article v-for="entry in workspacePending" :key="entry.id" class="card entry-card">
-                        <span class="status-chip status-chip--pending-review">Pending Review</span>
+                        <span class="status-chip status-chip--pending-review">{{ statusLabel(entry.status) }}</span>
                         <h3>{{ translateText(entry.title) }}</h3>
                         <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
-                        <p>{{ entry.note }}</p>
                         <div class="entry-card__meta">
+                            <span v-if="entry.submittedAt">Submitted {{ formatShortDate(entry.submittedAt) }}</span>
                             <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
                         </div>
                     </article>
+                    <div v-if="!workspacePending.length" class="card empty-state">No articles are waiting for review right now.</div>
                 </div>
 
                 <div v-else-if="profileSection === 'drafts'" class="list-grid">
                     <article v-for="entry in workspaceDrafts" :key="entry.id" class="card entry-card">
-                        <span class="status-chip status-chip--draft">Draft</span>
+                        <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
                         <h3>{{ translateText(entry.title) }}</h3>
                         <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
-                        <p>{{ entry.note }}</p>
+                        <p v-if="entry.rejectReason"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
                         <div class="entry-card__meta">
+                            <span v-if="entry.submittedAt">Last submitted {{ formatShortDate(entry.submittedAt) }}</span>
                             <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
                         </div>
+                        <button class="ghost-btn small" type="button" @click="editPost(entry)">Edit</button>
                     </article>
+                    <div v-if="!workspaceDrafts.length" class="card empty-state">No drafts or rejected articles yet.</div>
                 </div>
 
                 <div v-else class="request-grid">
-                    <article v-for="entry in permissionRequests" :key="entry.id" class="card request-card">
+                    <article v-for="entry in contributorApplications" :key="entry.id" class="card request-card">
                         <div class="request-card__top">
-                            <h3>{{ entry.title }}</h3>
+                            <h3>{{ contributorApplicationTitle() }}</h3>
                             <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
                         </div>
-                        <p>{{ entry.note }}</p>
+                        <p>{{ contributorApplicationNote(entry) }}</p>
                         <div class="entry-card__meta">
                             <span>Submitted {{ formatShortDate(entry.createdAt) }}</span>
+                            <span v-if="entry.reviewedAt">Reviewed {{ formatShortDate(entry.reviewedAt) }}</span>
                         </div>
                     </article>
+                    <div v-if="!contributorApplications.length" class="card empty-state">No contributor applications submitted yet.</div>
 
                     <article class="card request-card request-card--action">
                         <p class="eyebrow dark">Apply for Access</p>
-                        <h3>Permission application shortcuts</h3>
+                        <h3>Contributor access application</h3>
+                        <p v-if="currentUser?.role === 'USER' && latestContributorApplication?.status === 'PENDING'" class="muted">Your current contributor application is still pending review.</p>
+                        <p v-else-if="currentUser?.role === 'CONTRIBUTOR'" class="muted">You already have contributor access.</p>
+                        <p v-else-if="currentUser?.role === 'ADMIN'" class="muted">Administrator accounts do not need contributor access requests.</p>
+                        <p v-else class="muted">Submit a single request to become a contributor.</p>
                         <div class="request-actions">
-                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Curator Review Access')">Request curator access</button>
-                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Extended Publishing Rights')">Request publishing rights</button>
-                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest('Category Editor Access')">Request category editor access</button>
+                            <button v-if="canApplyForContributor" class="ghost-btn small" type="button" @click="submitPermissionRequest">Apply to become a contributor</button>
+                            <span v-else class="muted">No new contributor request can be submitted right now.</span>
                         </div>
                     </article>
                 </div>
@@ -581,7 +600,7 @@
                     <article class="card metric-card">
                         <span class="metric-card__label">Managed articles</span>
                         <strong class="metric-card__value">{{ adminArticles.length }}</strong>
-                        <p class="metric-card__detail">A front-end table for review, draft, and published states.</p>
+                        <p class="metric-card__detail">Live article states across review, published, archived, and draft flows.</p>
                     </article>
                     <article class="card metric-card">
                         <span class="metric-card__label">Managed users</span>
@@ -591,7 +610,7 @@
                     <article class="card metric-card">
                         <span class="metric-card__label">Approval queue</span>
                         <strong class="metric-card__value">{{ adminApprovalsView.length }}</strong>
-                        <p class="metric-card__detail">Role requests and article review items awaiting decisions.</p>
+                        <p class="metric-card__detail">Pending review items currently waiting in the administrator queue.</p>
                     </article>
                 </div>
 
@@ -605,7 +624,28 @@
                     <div class="section-head compact">
                         <div>
                             <p class="eyebrow dark">Article Management</p>
-                            <h3>Review article states and archive ordering</h3>
+                            <h3>Review article states and update publication status</h3>
+                            <p class="muted">{{ adminResultCountLabel }}</p>
+                            <p class="muted">{{ adminResultSummary }}</p>
+                            <p class="muted">{{ adminSortSummary }}</p>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="adminTitleQuery" type="text" placeholder="Search by title">
+                            <select v-model="adminFilterStatus">
+                                <option value="">All statuses</option>
+                                <option value="PENDING_REVIEW">Pending Review</option>
+                                <option value="PUBLISHED">Published</option>
+                                <option value="REJECTED">Rejected</option>
+                                <option value="ARCHIVED">Archived</option>
+                                <option value="DRAFT">Draft</option>
+                            </select>
+                            <select v-model="adminSortOption">
+                                <option value="UPDATED_DESC">Recently updated</option>
+                                <option value="SUBMITTED_DESC">Recently submitted</option>
+                                <option value="REVIEWED_DESC">Recently reviewed</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminPosts">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminSearch">Clear</button>
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -616,20 +656,45 @@
                                 <th>Collection</th>
                                 <th>Author</th>
                                 <th>Status</th>
-                                <th>Updated</th>
+                                <th>{{ adminSortColumnLabel }}</th>
                             </tr>
                             </thead>
                             <tbody>
-                            <tr v-for="row in adminArticles" :key="row.id">
+                            <tr v-for="row in adminArticles" :key="row.id" @click="openAdminPost(row.id)">
                                 <td>{{ translateText(row.title) }}</td>
                                 <td>{{ translateCategory(row.categoryName) }}</td>
                                 <td>{{ translateNickname(row.authorName) }}</td>
                                 <td><span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
-                                <td>{{ formatShortDate(row.updatedAt) }}</td>
+                                <td>{{ formatShortDate(adminSortValue(row)) }}</td>
                             </tr>
                             </tbody>
                         </table>
                     </div>
+                    <article v-if="selectedAdminPost" class="card request-card">
+                        <div class="request-card__top">
+                            <h3>{{ translateText(selectedAdminPost.title) }}</h3>
+                            <span class="status-chip" :class="statusClass(selectedAdminPost.status)">{{ statusLabel(selectedAdminPost.status) }}</span>
+                        </div>
+                        <p class="muted">{{ translateCategory(selectedAdminPost.categoryName) }} · {{ translateNickname(selectedAdminPost.authorName) }}</p>
+                        <p>{{ translateText(selectedAdminPost.content) }}</p>
+                        <p v-if="selectedAdminPost.rejectReason" class="muted">Rejection reason: {{ selectedAdminPost.rejectReason }}</p>
+                        <div class="entry-card__meta">
+                            <span v-if="selectedAdminPost.submittedAt">Submitted {{ formatShortDate(selectedAdminPost.submittedAt) }}</span>
+                            <span v-if="selectedAdminPost.reviewedAt">Reviewed {{ formatShortDate(selectedAdminPost.reviewedAt) }}</span>
+                            <span v-if="reviewerLabel(selectedAdminPost)">Reviewed by {{ translateNickname(reviewerLabel(selectedAdminPost)) }}</span>
+                        </div>
+                        <label v-if="selectedAdminPost.status === 'PENDING_REVIEW'">
+                            Rejection Reason
+                            <textarea v-model="adminReviewReason" rows="3" placeholder="Explain why this article should be revised."></textarea>
+                        </label>
+                        <div class="request-actions">
+                            <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="primary-btn small" type="button" @click="approveSelectedAdminPost">Approve</button>
+                            <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="ghost-btn small" type="button" @click="rejectSelectedAdminPost">Reject</button>
+                            <button v-if="selectedAdminPost.status === 'PUBLISHED'" class="ghost-btn small" type="button" @click="archiveSelectedAdminPost">Archive</button>
+                            <button v-if="selectedAdminPost.status === 'ARCHIVED'" class="ghost-btn small" type="button" @click="restoreSelectedAdminPost">Restore</button>
+                        </div>
+                    </article>
+                    <div v-if="!adminArticles.length" class="card empty-state">No articles match the current filter.</div>
                 </section>
 
                 <section v-else-if="adminSection === 'users'" class="card admin-panel">
@@ -637,6 +702,17 @@
                         <div>
                             <p class="eyebrow dark">User Management</p>
                             <h3>Review roles, activity, and account states</h3>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="adminUserQuery" type="text" placeholder="Search by username">
+                            <select v-model="adminUserRoleFilter">
+                                <option value="">All roles</option>
+                                <option value="USER">User</option>
+                                <option value="CONTRIBUTOR">Contributor</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminUsers">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminUserSearch">Clear</button>
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -648,26 +724,76 @@
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Contributions</th>
+                                <th>Actions</th>
                             </tr>
                             </thead>
                             <tbody>
                             <tr v-for="row in adminUsersView" :key="row.id">
                                 <td>{{ row.username }}</td>
                                 <td>{{ translateNickname(row.nickname) }}</td>
-                                <td>{{ row.role }}</td>
+                                <td>{{ roleLabel(row.role) }}</td>
                                 <td>{{ row.status }}</td>
                                 <td>{{ row.contributions }}</td>
+                                <td>
+                                    <button
+                                        v-if="canManageUserRole(row)"
+                                        class="ghost-btn small"
+                                        type="button"
+                                        @click="updateAdminUserRole(row.id, nextUserRole(row))"
+                                    >
+                                        {{ nextUserRoleLabel(row) }}
+                                    </button>
+                                    <span v-else class="muted">Protected</span>
+                                </td>
                             </tr>
                             </tbody>
                         </table>
+                    </div>
+                    <div v-if="!adminUsersView.length" class="card empty-state">No users match the current filter.</div>
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Contributor Applications</p>
+                            <h3>Review pending contributor access requests</h3>
+                        </div>
+                        <div class="request-actions">
+                            <select v-model="adminContributorApplicationStatusFilter">
+                                <option value="">All statuses</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="REJECTED">Rejected</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminContributorApplications">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminContributorApplications">Clear</button>
+                        </div>
+                    </div>
+                    <div class="approval-list">
+                        <article v-for="entry in adminContributorApplications" :key="entry.id" class="approval-card">
+                            <div class="approval-card__top">
+                                <h3>{{ contributorApplicationTitle() }}</h3>
+                                <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
+                            </div>
+                            <p class="muted">{{ entry.applicantUsername }} · {{ translateNickname(entry.applicantNickname) }}</p>
+                            <div class="entry-card__meta">
+                                <span>Submitted {{ formatShortDate(entry.createdAt) }}</span>
+                                <span v-if="entry.reviewedAt">Reviewed {{ formatShortDate(entry.reviewedAt) }}</span>
+                            </div>
+                            <div class="request-actions">
+                                <button v-if="entry.status === 'PENDING'" class="primary-btn small" type="button" @click="approveContributorApplication(entry.id)">Approve</button>
+                                <button v-if="entry.status === 'PENDING'" class="ghost-btn small" type="button" @click="rejectContributorApplication(entry.id)">Reject</button>
+                                <span v-if="entry.reviewerName" class="muted">Reviewed by {{ translateNickname(entry.reviewerName) }}</span>
+                            </div>
+                        </article>
+                        <div v-if="!adminContributorApplications.length" class="card empty-state">No contributor applications match the current filter.</div>
                     </div>
                 </section>
 
                 <section v-else class="card admin-panel">
                     <div class="section-head compact">
                         <div>
-                            <p class="eyebrow dark">Approval Queue</p>
-                            <h3>Requests and review items waiting for action</h3>
+                            <p class="eyebrow dark">Pending Review Queue</p>
+                            <h3>Pending article reviews waiting for action</h3>
+                            <p class="muted">{{ adminApprovalsView.length }} items waiting</p>
+                            <p class="muted">Queue shows all pending items only.</p>
                         </div>
                     </div>
                     <div class="approval-list">
@@ -676,11 +802,17 @@
                                 <h3>{{ row.title }}</h3>
                                 <span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
                             </div>
-                            <p class="muted">{{ row.type }} · {{ row.applicant }}</p>
+                            <p class="muted">Author: {{ translateNickname(row.authorName) }}</p>
                             <div class="entry-card__meta">
                                 <span>Submitted {{ formatShortDate(row.submittedAt) }}</span>
+                                <span v-if="row.reviewerName">Reviewed by {{ translateNickname(row.reviewerName) }}</span>
+                            </div>
+                            <div class="request-actions">
+                                <button class="primary-btn small" type="button" @click="quickApproveFromQueue(row.postId)">Quick approve</button>
+                                <button class="ghost-btn small" type="button" @click="openReviewFromQueue(row.postId)">Open article review</button>
                             </div>
                         </article>
+                        <div v-if="!adminApprovalsView.length" class="card empty-state">No pending article reviews right now.</div>
                     </div>
                 </section>
             </template>

@@ -3,6 +3,7 @@ package com.heritage.platform.controller;
 import com.heritage.platform.common.ApiResponse;
 import com.heritage.platform.dto.request.CommentCreateRequest;
 import com.heritage.platform.dto.request.PostCreateRequest;
+import com.heritage.platform.dto.request.PostUpdateRequest;
 import com.heritage.platform.dto.response.CommentResponse;
 import com.heritage.platform.dto.response.PostDetailResponse;
 import com.heritage.platform.dto.response.PostSummaryResponse;
@@ -11,6 +12,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,7 +41,20 @@ public class PostController {
 
     @PostMapping
     public ApiResponse<PostDetailResponse> create(@Valid @RequestBody PostCreateRequest request) {
-        return ApiResponse.success("文章发布成功", postService.create(request));
+        return ApiResponse.success("草稿创建成功", postService.create(request));
+    }
+
+    @PutMapping("/{postId}")
+    public ApiResponse<PostDetailResponse> update(
+            @PathVariable Long postId,
+            @Valid @RequestBody PostUpdateRequest request
+    ) {
+        return ApiResponse.success("文章更新成功", postService.update(postId, request));
+    }
+
+    @PostMapping("/{postId}/submit-review")
+    public ApiResponse<PostDetailResponse> submitForReview(@PathVariable Long postId) {
+        return ApiResponse.success("文章已提交审核", postService.submitForReview(postId));
     }
 
     @PostMapping("/{postId}/comments")
