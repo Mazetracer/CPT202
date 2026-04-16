@@ -37,10 +37,15 @@ CREATE TABLE IF NOT EXISTS posts (
     comment_count INT NOT NULL DEFAULT 0,
     author_id BIGINT NOT NULL,
     category_id BIGINT NOT NULL,
+    reviewed_by BIGINT,
+    reject_reason VARCHAR(255),
+    submitted_at DATETIME,
+    reviewed_at DATETIME,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     CONSTRAINT fk_posts_author FOREIGN KEY (author_id) REFERENCES users(id),
-    CONSTRAINT fk_posts_category FOREIGN KEY (category_id) REFERENCES categories(id)
+    CONSTRAINT fk_posts_category FOREIGN KEY (category_id) REFERENCES categories(id),
+    CONSTRAINT fk_posts_reviewed_by FOREIGN KEY (reviewed_by) REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS post_images (
@@ -63,4 +68,16 @@ CREATE TABLE IF NOT EXISTS comments (
     updated_at DATETIME NOT NULL,
     CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users(id),
     CONSTRAINT fk_comments_post FOREIGN KEY (post_id) REFERENCES posts(id)
+);
+
+CREATE TABLE IF NOT EXISTS contributor_applications (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    applicant_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    reviewed_by BIGINT,
+    reviewed_at DATETIME,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_contributor_applications_applicant FOREIGN KEY (applicant_id) REFERENCES users(id),
+    CONSTRAINT fk_contributor_applications_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id)
 );

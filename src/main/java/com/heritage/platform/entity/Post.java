@@ -1,6 +1,7 @@
 package com.heritage.platform.entity;
 
 import com.heritage.platform.enums.PostStatus;
+import java.time.LocalDateTime;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -46,7 +47,7 @@ public class Post extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private PostStatus status = PostStatus.PUBLISHED;
+    private PostStatus status = PostStatus.DRAFT;
 
     @Column(nullable = false)
     private Integer likeCount = 0;
@@ -65,6 +66,17 @@ public class Post extends BaseTimeEntity {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by")
+    private User reviewedBy;
+
+    @Column(length = 255)
+    private String rejectReason;
+
+    private LocalDateTime submittedAt;
+
+    private LocalDateTime reviewedAt;
+
     @OrderBy("sortOrder ASC")
     @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PostImage> images = new ArrayList<>();
@@ -80,7 +92,7 @@ public class Post extends BaseTimeEntity {
         this.region = region;
         this.author = author;
         this.category = category;
-        this.status = PostStatus.PUBLISHED;
+        this.status = PostStatus.DRAFT;
         this.likeCount = 0;
         this.favoriteCount = 0;
         this.commentCount = 0;
@@ -93,6 +105,58 @@ public class Post extends BaseTimeEntity {
 
     public void addImage(PostImage image) {
         images.add(image);
+    }
+
+    public void replaceImages(List<PostImage> newImages) {
+        images.clear();
+        if (newImages == null) {
+            return;
+        }
+        newImages.forEach(this::addImage);
+    }
+
+    public void update(String title, String content, String coverImageUrl, String heritageName, String region, Category category) {
+        this.title = title;
+        this.content = content;
+        this.coverImageUrl = coverImageUrl;
+        this.heritageName = heritageName;
+        this.region = region;
+        this.category = category;
+    }
+
+    public void submitForReview() {
+        this.status = PostStatus.PENDING_REVIEW;
+        this.submittedAt = LocalDateTime.now();
+        this.reviewedAt = null;
+        this.reviewedBy = null;
+        this.rejectReason = null;
+    }
+
+    public void approve(User reviewer) {
+        this.status = PostStatus.PUBLISHED;
+        this.reviewedAt = LocalDateTime.now();
+        this.reviewedBy = reviewer;
+        this.rejectReason = null;
+    }
+
+    public void reject(User reviewer, String reason) {
+        this.status = PostStatus.REJECTED;
+        this.reviewedAt = LocalDateTime.now();
+        this.reviewedBy = reviewer;
+        this.rejectReason = reason;
+    }
+
+    public void archive(User reviewer) {
+        this.status = PostStatus.ARCHIVED;
+        this.reviewedAt = LocalDateTime.now();
+        this.reviewedBy = reviewer;
+    }
+
+    public void restore(User reviewer) {
+        this.status = PostStatus.PUBLISHED;
+        this.reviewedAt = LocalDateTime.now();
+        this.reviewedBy = reviewer;
+        this.rejectReason = null;
     }
 
     public void increaseCommentCount() {
@@ -145,6 +209,22 @@ public class Post extends BaseTimeEntity {
 
     public Category getCategory() {
         return category;
+    }
+
+    public User getReviewedBy() {
+        return reviewedBy;
+    }
+
+    public String getRejectReason() {
+        return rejectReason;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public LocalDateTime getReviewedAt() {
+        return reviewedAt;
     }
 
     public List<PostImage> getImages() {
