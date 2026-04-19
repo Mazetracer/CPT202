@@ -28,7 +28,7 @@
                 <button class="topnav__link" :class="{ active: currentView === 'home' }" type="button" @click="navigate('home')">
                     Home
                 </button>
-                <button class="topnav__link" :class="{ active: currentView === 'publish' }" type="button" @click="navigate('publish')">
+                <button v-if="isContributor" class="topnav__link" :class="{ active: currentView === 'publish' }" type="button" @click="navigate('publish')">
                     Drafts
                 </button>
                 <button v-if="isAdmin" class="topnav__link" :class="{ active: currentView === 'admin' }" type="button" @click="navigate('admin')">

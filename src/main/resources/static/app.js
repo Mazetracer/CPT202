@@ -458,6 +458,9 @@ createApp({
         isAdmin() {
             return this.currentUser?.role === "ADMIN";
         },
+        isContributor() {
+            return this.currentUser?.role === "CONTRIBUTOR" || this.currentUser?.role === "ADMIN";
+        },
         currentViewLabel() {
             const labels = {
                 home: "Homepage dashboard",
@@ -616,6 +619,11 @@ createApp({
                 nextView = "auth";
             }
 
+            if (view === "publish" && !this.isContributor) {
+                this.showError("Please sign in as a contributor to access the drafts page.");
+                nextView = this.currentUser ? "profile" : "auth";
+            }
+
             if (view === "admin" && !this.isAdmin) {
                 this.showError("Sign in with the administrator account to open the admin preview.");
                 nextView = this.currentUser ? "profile" : "auth";
@@ -668,7 +676,9 @@ createApp({
         },
         authHeaders(baseHeaders = {}) {
             const headers = { ...baseHeaders };
-            if (this.currentUser?.id) {
+            if (this.currentUser?.token) {
+                headers["Authorization"] = `Bearer ${this.currentUser.token}`;
+            } else if (this.currentUser?.id) {
                 headers["X-User-Id"] = String(this.currentUser.id);
             }
             return headers;

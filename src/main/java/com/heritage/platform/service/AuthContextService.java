@@ -43,6 +43,14 @@ public class AuthContextService {
         return user;
     }
 
+    public User requireContributor() {
+        User user = requireActiveUser();
+        if (user.getRole() != UserRole.CONTRIBUTOR && user.getRole() != UserRole.ADMIN) {
+            throw new ForbiddenException("仅投稿用户可执行该操作");
+        }
+        return user;
+    }
+
     private Long resolveCurrentUserId() {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
         if (!(attributes instanceof ServletRequestAttributes servletAttributes)) {
@@ -50,6 +58,14 @@ public class AuthContextService {
         }
 
         HttpServletRequest request = servletAttributes.getRequest();
+        
+        // 优先从 JWT 过滤器设置的属性中获取
+        Long userId = (Long) request.getAttribute("userId");
+        if (userId != null) {
+            return userId;
+        }
+        
+        // 兼容旧的 X-User-Id 头
         String headerValue = request.getHeader(USER_ID_HEADER);
         if (headerValue == null || headerValue.isBlank()) {
             throw new ForbiddenException("缺少请求头: " + USER_ID_HEADER);
