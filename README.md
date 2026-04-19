@@ -118,10 +118,9 @@
 
 ## 当前鉴权方案
 
-已实现 **JWT 鉴权方案**，同时保留了对旧方案的兼容：
+使用 **JWT 鉴权方案**：
 
 - **JWT 认证**：使用 `Authorization: Bearer <token>` 请求头进行认证
-- **兼容旧方案**：保留了对 `X-User-Id` 请求头的支持，确保向后兼容
 - **权限控制**：`AuthContextService` 统一处理用户权限校验
 - **安全配置**：使用 Spring Security 进行权限管理
 
@@ -227,7 +226,6 @@ Windows：
 
 ## 当前已知限制
 
-- 仍未切换到 JWT，当前鉴权仍依赖 `X-User-Id`
 - 管理员文章管理尚未做分页
 - 权限申请流暂未增加驳回原因与更完整的统计反馈
 - 远程数据库配置不纳入默认仓库提交
@@ -256,13 +254,50 @@ Windows：
 - **密码加密**：使用 BCrypt 加密存储密码
 - **权限检查**：在服务层添加权限检查方法
 - **前端认证**：修改前端认证逻辑，支持 JWT
-- **兼容旧系统**：保留了对 X-User-Id 头的支持，确保向后兼容
 
 ### 4. 功能增强
 - **用户角色管理**：明确了三种角色（USER、CONTRIBUTOR、ADMIN）的权限
 - **投稿申请流程**：普通用户可以申请成为投稿用户
 - **文章状态管理**：文章有草稿、待审核、已发布、已拒绝、已归档等状态
 - **文件上传权限**：只有投稿用户和管理员可以上传图片
+
+## 最近更新（2026-04-20）
+
+### PDF附件改为可选
+
+**问题描述**：
+将PDF附件改为可选后，用户无法提交申请，点击提交申请按钮没有反应。
+
+**根本原因**：
+1. 后端控制器使用 `@RequestPart` 注解处理 multipart 请求时，即使设置 `required = false`，当请求不包含该部分时仍会导致Spring框架处理异常
+2. 使用 Jackson ObjectMapper 直接解析 JSON 字符串可以更好地处理这种情况
+
+**解决方案**：
+1. **修改 `MyContributorApplicationController.java`**：
+   - 将 `@RequestPart("request") CreateContributorApplicationRequest request` 改为 `@RequestParam("request") String requestJson`
+   - 使用 `ObjectMapper` 手动解析 JSON 字符串
+   - 保持 `@RequestParam(value = "attachment", required = false) MultipartFile attachment` 使附件为可选
+
+2. **增强异常处理**：
+   - 在 `GlobalExceptionHandler.java` 中添加详细的日志记录
+   - 在 `AuthContextService.java` 中添加用户身份解析的日志
+
+3. **优化文件处理**：
+   - 创建 `FaviconController.java` 处理 favicon.ico 请求，避免500错误
+   - 在 `SecurityConfig.java` 中添加 `/favicon.ico` 到公开路径列表
+
+**技术细节**：
+- 前端使用 `FormData` 对象构建 multipart 请求
+- 当没有附件时，仅发送 `request` 部分
+- 后端使用 `ObjectMapper.readValue()` 解析 JSON 字符串
+- 添加详细的日志记录便于调试
+
+**修改的文件**：
+- `MyContributorApplicationController.java` - 修改请求处理方式
+- `GlobalExceptionHandler.java` - 增强异常日志
+- `AuthContextService.java` - 添加调试日志
+- `FaviconController.java` - 新增文件
+- `SecurityConfig.java` - 添加公开路径
 
 ## 建议下一步
 

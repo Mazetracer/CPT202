@@ -25,9 +25,10 @@ public class AdminContributorApplicationController {
 
     @GetMapping
     public ApiResponse<List<AdminContributorApplicationResponse>> listApplications(
-            @RequestParam(required = false) ContributorApplicationStatus status
+            @RequestParam(required = false) ContributorApplicationStatus status,
+            @RequestParam(required = false, defaultValue = "created_at_desc") String sortBy
     ) {
-        return ApiResponse.success(contributorApplicationService.listAdminApplications(status));
+        return ApiResponse.success(contributorApplicationService.listAdminApplications(status, sortBy));
     }
 
     @PostMapping("/{applicationId}/approve")

@@ -11,6 +11,8 @@ public record AdminContributorApplicationResponse(
         String applicantUsername,
         String applicantNickname,
         UserRole applicantRole,
+        String applicationReason,
+        String attachmentPath,
         ContributorApplicationStatus status,
         String reviewerName,
         LocalDateTime createdAt,

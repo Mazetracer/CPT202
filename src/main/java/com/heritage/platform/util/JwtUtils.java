@@ -14,8 +14,13 @@ import java.util.Map;
 @Component
 public class JwtUtils {
 
-    private final SecretKey secretKey = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private final SecretKey secretKey;
     private final long expirationTime = 86400000; // 24 hours
+
+    public JwtUtils() {
+        // 使用固定密钥，确保测试和应用使用相同的密钥
+        this.secretKey = Keys.hmacShaKeyFor("test-secret-key-1234567890-test-secret-key-1234567890-test-secret-key-1234567890".getBytes());
+    }
 
     public String generateToken(Long userId, String username, String role) {
         Map<String, Object> claims = new HashMap<>();
@@ -24,18 +29,19 @@ public class JwtUtils {
         claims.put("role", role);
 
         return Jwts.builder()
-                .setClaims(claims)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
+                .claims(claims)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(secretKey)
                 .compact();
     }
 
     public Claims validateToken(String token) {
         return Jwts.parser()
-                .setSigningKey(secretKey)
-                .parseClaimsJws(token)
-                .getBody();
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 
     public Long getUserIdFromToken(String token) {

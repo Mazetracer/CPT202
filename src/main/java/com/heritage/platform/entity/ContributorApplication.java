@@ -27,6 +27,12 @@ public class ContributorApplication extends BaseTimeEntity {
     @JoinColumn(name = "applicant_id", nullable = false)
     private User applicant;
 
+    @Column(columnDefinition = "TEXT")
+    private String applicationReason;
+
+    @Column(length = 255)
+    private String attachmentPath;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ContributorApplicationStatus status = ContributorApplicationStatus.PENDING;
@@ -40,13 +46,15 @@ public class ContributorApplication extends BaseTimeEntity {
     protected ContributorApplication() {
     }
 
-    private ContributorApplication(User applicant) {
+    private ContributorApplication(User applicant, String applicationReason, String attachmentPath) {
         this.applicant = applicant;
+        this.applicationReason = applicationReason;
+        this.attachmentPath = attachmentPath;
         this.status = ContributorApplicationStatus.PENDING;
     }
 
-    public static ContributorApplication create(User applicant) {
-        return new ContributorApplication(applicant);
+    public static ContributorApplication create(User applicant, String applicationReason, String attachmentPath) {
+        return new ContributorApplication(applicant, applicationReason, attachmentPath);
     }
 
     public void approve(User reviewer) {
@@ -67,6 +75,14 @@ public class ContributorApplication extends BaseTimeEntity {
 
     public User getApplicant() {
         return applicant;
+    }
+
+    public String getApplicationReason() {
+        return applicationReason;
+    }
+
+    public String getAttachmentPath() {
+        return attachmentPath;
     }
 
     public ContributorApplicationStatus getStatus() {

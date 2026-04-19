@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 public record MyContributorApplicationResponse(
         Long id,
+        String applicationReason,
+        String attachmentPath,
         ContributorApplicationStatus status,
         LocalDateTime createdAt,
         LocalDateTime reviewedAt,

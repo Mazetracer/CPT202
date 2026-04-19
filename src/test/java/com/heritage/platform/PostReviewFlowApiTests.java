@@ -13,12 +13,14 @@ import com.heritage.platform.repository.CommentRepository;
 import com.heritage.platform.repository.ContributorApplicationRepository;
 import com.heritage.platform.repository.PostRepository;
 import com.heritage.platform.repository.UserRepository;
+import com.heritage.platform.util.JwtUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -29,6 +31,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -59,6 +62,9 @@ class PostReviewFlowApiTests {
 
     @Autowired
     private ContributorApplicationRepository contributorApplicationRepository;
+
+    @Autowired
+    private JwtUtils jwtUtils;
 
     private User authorA;
     private User authorB;
@@ -155,7 +161,7 @@ class PostReviewFlowApiTests {
         Post archived = createPost(authorA, PostStatus.ARCHIVED);
 
         mockMvc.perform(post("/api/posts/{postId}/comments", published.getId())
-                        .header("X-User-Id", authorB.getId())
+                        .header("Authorization", "Bearer " + jwtUtils.generateToken(authorB.getId(), authorB.getUsername(), authorB.getRole().name()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(commentPayload("A published comment"))))
                 .andExpect(status().isOk())
@@ -167,7 +173,7 @@ class PostReviewFlowApiTests {
         assertThat(commentRepository.findByPostIdOrderByCreatedAtAsc(published.getId())).hasSize(1);
 
         mockMvc.perform(post("/api/posts/{postId}/comments", archived.getId())
-                        .header("X-User-Id", authorB.getId())
+                        .header("Authorization", "Bearer " + jwtUtils.generateToken(authorB.getId(), authorB.getUsername(), authorB.getRole().name()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(commentPayload("Should fail"))))
                 .andExpect(status().isNotFound())
@@ -508,8 +514,16 @@ class PostReviewFlowApiTests {
 
     @Test
     void userCanCreateAndViewOwnContributorApplications() throws Exception {
-        mockMvc.perform(authorRequest(post("/api/my/contributor-applications"), authorA))
-                .andExpect(status().isOk())
+        // 创建一个包含申请理由的请求体
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("applicationReason", "Test application reason");
+        String requestJson = objectMapper.writeValueAsString(requestBody);
+
+        // 使用MockMultipartFile构建multipart请求
+        MockMultipartFile requestPart = new MockMultipartFile("request", "", "application/json", requestJson.getBytes());
+
+        mockMvc.perform(authorRequest(multipart("/api/my/contributor-applications").file(requestPart), authorA))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.status").value("PENDING"));
 
@@ -524,7 +538,9 @@ class PostReviewFlowApiTests {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(0));
 
-        mockMvc.perform(authorRequest(post("/api/my/contributor-applications"), authorA))
+        // 再次提交申请（应该失败）
+        MockMultipartFile requestPart2 = new MockMultipartFile("request", "", "application/json", requestJson.getBytes());
+        mockMvc.perform(authorRequest(multipart("/api/my/contributor-applications").file(requestPart2), authorA))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("已有待处理的贡献者申请"));
@@ -534,12 +550,22 @@ class PostReviewFlowApiTests {
     void onlyUserCanCreateContributorApplications() throws Exception {
         User contributor = userRepository.save(new User("contributor-user", "hash", "Contributor User", null, UserRole.CONTRIBUTOR, true));
 
-        mockMvc.perform(authorRequest(post("/api/my/contributor-applications"), contributor))
+        // 创建一个包含申请理由的请求体
+        Map<String, Object> requestBody = new LinkedHashMap<>();
+        requestBody.put("applicationReason", "Test application reason");
+        String requestJson = objectMapper.writeValueAsString(requestBody);
+
+        // 使用MockMultipartFile构建multipart请求
+        MockMultipartFile requestPart = new MockMultipartFile("request", "", "application/json", requestJson.getBytes());
+
+        mockMvc.perform(authorRequest(multipart("/api/my/contributor-applications").file(requestPart), contributor))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("当前角色无需申请贡献者权限"));
 
-        mockMvc.perform(adminRequest(post("/api/my/contributor-applications")))
+        // 管理员申请（应该失败）
+        MockMultipartFile requestPart2 = new MockMultipartFile("request", "", "application/json", requestJson.getBytes());
+        mockMvc.perform(adminRequest(multipart("/api/my/contributor-applications").file(requestPart2)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("当前角色无需申请贡献者权限"));
@@ -547,7 +573,7 @@ class PostReviewFlowApiTests {
 
     @Test
     void adminCanReviewContributorApplicationsAndPromoteUser() throws Exception {
-        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorA));
+        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorA, "Test application reason", null));
 
         mockMvc.perform(adminRequest(get("/api/admin/contributor-applications").param("status", "PENDING")))
                 .andExpect(status().isOk())
@@ -571,7 +597,7 @@ class PostReviewFlowApiTests {
 
     @Test
     void adminCanRejectContributorApplicationsWithoutPromotingUser() throws Exception {
-        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorB));
+        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorB, "Test application reason", null));
 
         mockMvc.perform(adminRequest(post("/api/admin/contributor-applications/{applicationId}/reject", pending.getId())))
                 .andExpect(status().isOk())
@@ -583,7 +609,7 @@ class PostReviewFlowApiTests {
 
     @Test
     void nonAdminCannotAccessAdminContributorApplications() throws Exception {
-        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorA));
+        ContributorApplication pending = contributorApplicationRepository.save(ContributorApplication.create(authorA, "Test application reason", null));
 
         mockMvc.perform(authorRequest(get("/api/admin/contributor-applications"), authorA))
                 .andExpect(status().isForbidden())
@@ -597,7 +623,7 @@ class PostReviewFlowApiTests {
     }
 
     private MockHttpServletRequestBuilder authorRequest(MockHttpServletRequestBuilder request, User user) {
-        return request.header("X-User-Id", user.getId());
+        return request.header("Authorization", "Bearer " + jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole().name()));
     }
 
     private MockHttpServletRequestBuilder adminRequest(MockHttpServletRequestBuilder request) {
