@@ -4,7 +4,7 @@ import com.heritage.platform.common.ApiResponse;
 import com.heritage.platform.dto.request.CommentCreateRequest;
 import com.heritage.platform.dto.request.PostCreateRequest;
 import com.heritage.platform.dto.request.PostUpdateRequest;
-import com.heritage.platform.dto.response.CommentResponse;
+import com.heritage.platform.dto.response.CommentCreateResponse;
 import com.heritage.platform.dto.response.PostDetailResponse;
 import com.heritage.platform.dto.response.PostSummaryResponse;
 import com.heritage.platform.service.PostService;
@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,8 +31,11 @@ public class PostController {
     }
 
     @GetMapping
-    public ApiResponse<List<PostSummaryResponse>> listAll() {
-        return ApiResponse.success(postService.listAll());
+    public ApiResponse<List<PostSummaryResponse>> listAll(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long categoryId
+    ) {
+        return ApiResponse.success(postService.listAll(keyword, categoryId));
     }
 
     @GetMapping("/{postId}")
@@ -57,8 +61,13 @@ public class PostController {
         return ApiResponse.success("文章已提交审核", postService.submitForReview(postId));
     }
 
+    @PostMapping("/{postId}/like")
+    public ApiResponse<PostDetailResponse> likePost(@PathVariable Long postId) {
+        return ApiResponse.success("点赞成功", postService.likePost(postId));
+    }
+
     @PostMapping("/{postId}/comments")
-    public ApiResponse<CommentResponse> addComment(
+    public ApiResponse<CommentCreateResponse> addComment(
             @PathVariable Long postId,
             @Valid @RequestBody CommentCreateRequest request
     ) {

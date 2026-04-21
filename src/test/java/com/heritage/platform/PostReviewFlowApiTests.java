@@ -103,6 +103,55 @@ class PostReviewFlowApiTests {
     }
 
     @Test
+    void publicList_supportsKeywordAndCategoryIdFilters() throws Exception {
+        Category secondCategory = categoryRepository.save(Category.create("鍙︿竴涓垎绫?", "Another category"));
+
+        Post suzhouCraft = createPost(authorA, PostStatus.PUBLISHED, "Suzhou Embroidery Notes");
+        Post otherCraft = createPost(authorA, PostStatus.PUBLISHED, "Kunqu Costume Study", category, "Nanjing");
+        Post suzhouOtherCategory = createPost(authorB, PostStatus.PUBLISHED, "Suzhou Bridge Memory", secondCategory, "Suzhou");
+        createPost(authorB, PostStatus.DRAFT, "Suzhou Draft Hidden", secondCategory, "Suzhou");
+
+        mockMvc.perform(get("/api/posts").param("keyword", "Suzhou"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[*].id").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        suzhouCraft.getId().intValue(),
+                        suzhouOtherCategory.getId().intValue()
+                )))
+                .andExpect(jsonPath("$.data[0].categoryId").exists());
+
+        mockMvc.perform(get("/api/posts").param("categoryId", String.valueOf(category.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[*].id").value(org.hamcrest.Matchers.containsInAnyOrder(
+                        suzhouCraft.getId().intValue(),
+                        otherCraft.getId().intValue()
+                )));
+
+        mockMvc.perform(get("/api/posts")
+                        .param("keyword", "Suzhou")
+                        .param("categoryId", String.valueOf(category.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(suzhouCraft.getId()))
+                .andExpect(jsonPath("$.data[0].categoryId").value(category.getId()));
+    }
+
+    @Test
+    void publicList_returnsEmptyArrayWhenKeywordMatchesNothing() throws Exception {
+        createPost(authorA, PostStatus.PUBLISHED, "Suzhou Embroidery Notes");
+
+        mockMvc.perform(get("/api/posts").param("keyword", "not-found"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
     void publicDetail_onlyAllowsPublishedPosts() throws Exception {
         Post published = createPost(authorA, PostStatus.PUBLISHED);
         Post draft = createPost(authorA, PostStatus.DRAFT);
@@ -167,7 +216,8 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(commentPayload("A published comment"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.content").value("A published comment"));
+                .andExpect(jsonPath("$.data.comment.content").value("A published comment"))
+                .andExpect(jsonPath("$.data.commentCount").value(1));
 
         Post updatedPost = postRepository.findById(published.getId()).orElseThrow();
         assertThat(updatedPost.getCommentCount()).isEqualTo(1);
@@ -897,12 +947,16 @@ class PostReviewFlowApiTests {
     }
 
     private Post createPost(User author, PostStatus status, String title) {
+        return createPost(author, status, title, category, "Suzhou");
+    }
+
+    private Post createPost(User author, PostStatus status, String title, Category category, String region) {
         Post post = Post.create(
                 title,
                 "Content for " + status,
                 "https://example.com/cover.jpg",
                 "Heritage item",
-                "Suzhou",
+                region,
                 author,
                 category
         );

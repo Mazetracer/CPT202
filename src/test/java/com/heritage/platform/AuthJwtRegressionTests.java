@@ -148,9 +148,10 @@ class AuthJwtRegressionTests {
                         .content(objectMapper.writeValueAsString(payload("content", "JWT comment works"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.content").value("JWT comment works"))
-                .andExpect(jsonPath("$.data.authorId").value(commenter.getId()))
-                .andExpect(jsonPath("$.data.authorNickname").value(nickname));
+                .andExpect(jsonPath("$.data.comment.content").value("JWT comment works"))
+                .andExpect(jsonPath("$.data.comment.authorId").value(commenter.getId()))
+                .andExpect(jsonPath("$.data.comment.authorNickname").value(nickname))
+                .andExpect(jsonPath("$.data.commentCount").value(1));
 
         Post updatedPost = postRepository.findById(published.getId()).orElseThrow();
         assertThat(updatedPost.getCommentCount()).isEqualTo(1);

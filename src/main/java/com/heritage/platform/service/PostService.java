@@ -5,6 +5,7 @@ import com.heritage.platform.common.ResourceNotFoundException;
 import com.heritage.platform.dto.request.CommentCreateRequest;
 import com.heritage.platform.dto.request.PostCreateRequest;
 import com.heritage.platform.dto.request.PostUpdateRequest;
+import com.heritage.platform.dto.response.CommentCreateResponse;
 import com.heritage.platform.dto.response.CommentResponse;
 import com.heritage.platform.dto.response.MyPostSummaryResponse;
 import com.heritage.platform.dto.response.PostDetailResponse;
@@ -116,21 +117,43 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public List<PostSummaryResponse> listAll() {
-        return postRepository.findAllByStatusOrderByCreatedAtDesc(PostStatus.PUBLISHED)
+        return listAll(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostSummaryResponse> listAll(String keyword, Long categoryId) {
+        String trimmedKeyword = keyword == null ? null : keyword.trim();
+        if (trimmedKeyword != null && trimmedKeyword.isEmpty()) {
+            trimmedKeyword = null;
+        }
+
+        return postRepository.searchPublishedPosts(PostStatus.PUBLISHED, trimmedKeyword, categoryId)
                 .stream()
                 .map(this::toSummary)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PostDetailResponse getDetail(Long postId) {
         Post post = postRepository.findByIdAndStatus(postId, PostStatus.PUBLISHED)
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+        post.increaseViewCount();
         return toDetail(post);
     }
 
     @Transactional
-    public CommentResponse addComment(Long postId, CommentCreateRequest request) {
+    public PostDetailResponse likePost(Long postId) {
+        Post post = postRepository.findByIdAndStatus(postId, PostStatus.PUBLISHED)
+                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+
+        // 增加点赞数
+        post.increaseLikeCount();
+
+        return toDetail(post);
+    }
+
+    @Transactional
+    public CommentCreateResponse addComment(Long postId, CommentCreateRequest request) {
         Post post = postRepository.findByIdAndStatus(postId, PostStatus.PUBLISHED)
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
         User author = authContextService.requireActiveUser();
@@ -138,13 +161,14 @@ public class PostService {
         Comment comment = commentRepository.save(Comment.create(request.content(), author, post));
         post.increaseCommentCount();
 
-        return new CommentResponse(
+        CommentResponse commentResponse = new CommentResponse(
                 comment.getId(),
                 comment.getContent(),
                 author.getId(),
                 author.getNickname(),
                 comment.getCreatedAt()
         );
+        return new CommentCreateResponse(commentResponse, post.getCommentCount());
     }
 
     private List<PostImage> buildImages(Post post, List<String> imageUrls) {
@@ -184,6 +208,7 @@ public class PostService {
                 post.getLikeCount(),
                 post.getFavoriteCount(),
                 post.getCommentCount(),
+                post.getViewCount(),
                 imageUrls,
                 comments,
                 post.getCreatedAt()
@@ -199,10 +224,12 @@ public class PostService {
                 post.getRegion(),
                 post.getStatus(),
                 post.getAuthor().getNickname(),
+                post.getCategory().getId(),
                 post.getCategory().getName(),
                 post.getLikeCount(),
                 post.getFavoriteCount(),
                 post.getCommentCount(),
+                post.getViewCount(),
                 post.getCreatedAt()
         );
     }
@@ -217,6 +244,8 @@ public class PostService {
                 post.getStatus(),
                 post.getCategory().getName(),
                 post.getRejectReason(),
+                post.getCommentCount(),
+                post.getViewCount(),
                 post.getSubmittedAt(),
                 post.getUpdatedAt(),
                 post.getCreatedAt()

@@ -18,6 +18,7 @@ public record PostDetailResponse(
         Integer likeCount,
         Integer favoriteCount,
         Integer commentCount,
+        Integer viewCount,
         List<String> imageUrls,
         List<CommentResponse> comments,
         LocalDateTime createdAt

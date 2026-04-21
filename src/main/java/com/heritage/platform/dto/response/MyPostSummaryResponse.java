@@ -13,6 +13,8 @@ public record MyPostSummaryResponse(
         PostStatus status,
         String categoryName,
         String rejectReason,
+        Integer commentCount,
+        Integer viewCount,
         LocalDateTime submittedAt,
         LocalDateTime updatedAt,
         LocalDateTime createdAt

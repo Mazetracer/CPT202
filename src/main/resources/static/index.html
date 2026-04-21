@@ -81,7 +81,7 @@
                         <span>Stories</span>
                     </div>
                     <div>
-                        <strong>{{ categories.length }}</strong>
+                        <strong>{{ visibleCollectionCount }}</strong>
                         <span>Collections</span>
                     </div>
                     <div>
@@ -102,7 +102,7 @@
                 </div>
                 <div class="toolbar__hint">
                     <p class="toolbar__label">Archive Scale</p>
-                    <strong>{{ totalStories }} stories across {{ categories.length }} collections</strong>
+                    <strong>{{ totalStories }} stories across {{ visibleCollectionCount }} collections</strong>
                 </div>
             </div>
 
@@ -128,20 +128,14 @@
             </div>
 
             <div class="metric-grid">
-                <article class="card metric-card">
-                    <span class="metric-card__label">Total stories</span>
-                    <strong class="metric-card__value">{{ totalStories }}</strong>
-                    <p class="metric-card__detail">Published articles currently visible in the front-end archive.</p>
+                <article class="card metric-card" style="padding: 16px;">
+                    <div id="chart-posts" style="width: 100%; height: 260px;"></div>
                 </article>
-                <article class="card metric-card">
-                    <span class="metric-card__label">Discussion activity</span>
-                    <strong class="metric-card__value">{{ totalComments }}</strong>
-                    <p class="metric-card__detail">Comment count used to support homepage momentum and ranking.</p>
+                <article class="card metric-card" style="padding: 16px;">
+                    <div id="chart-comments" style="width: 100%; height: 260px;"></div>
                 </article>
-                <article class="card metric-card">
-                    <span class="metric-card__label">Contributors</span>
-                    <strong class="metric-card__value">{{ totalContributors }}</strong>
-                    <p class="metric-card__detail">Distinct author names appearing across the current story feed.</p>
+                <article class="card metric-card" style="padding: 16px;">
+                    <div id="chart-categories" style="width: 100%; height: 260px;"></div>
                 </article>
             </div>
 
@@ -149,14 +143,39 @@
                 <section class="card search-panel">
                     <p class="eyebrow dark">Archive Search</p>
                     <h3>Search articles by title, place, category, or contributor.</h3>
-                    <div class="search-panel__controls">
-                        <input v-model="homeSearchQuery" type="text" placeholder="Search the archive">
-                        <select v-model="selectedCategoryFilter">
+                    <form class="search-panel__controls" @submit.prevent="triggerHomepageSearch">
+                        <div class="search-panel__search-row">
+                            <input
+                                v-model="homeSearchQuery"
+                                type="text"
+                                placeholder="Search the archive"
+                            >
+                            <button
+                                class="primary-btn search-panel__submit"
+                                type="submit"
+                                :disabled="homepageSearchLoading"
+                                :aria-busy="homepageSearchLoading ? 'true' : 'false'"
+                                aria-label="Search homepage articles"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.44 4.43 1.06-1.06-4.43-4.44A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"></path>
+                                </svg>
+                                <span>{{ homepageSearchLoading ? 'Searching...' : 'Search' }}</span>
+                            </button>
+                        </div>
+                        <select v-model="selectedCategoryFilter" @keydown.enter.prevent.stop="triggerHomepageSearch">
                             <option value="">All collections</option>
-                            <option v-for="category in categories" :key="category.id" :value="category.name">
+                            <option v-for="category in categories" :key="category.id" :value="String(category.id)">
                                 {{ translateCategory(category.name) }}
                             </option>
                         </select>
+                    </form>
+                    <div v-if="hasActiveHomepageFilters" class="search-panel__active-filters">
+                        <span class="toolbar__label">Current filters</span>
+                        <div class="tag-list">
+                            <span v-if="activeHomepageKeyword" class="story-chip story-chip--filter">Keyword: "{{ activeHomepageKeyword }}"</span>
+                            <span v-if="appliedCategoryFilter" class="story-chip story-chip--filter">Collection: {{ selectedCategoryFilterLabel }}</span>
+                        </div>
                     </div>
                     <div class="tag-list">
                         <span class="story-chip">{{ filteredPosts.length }} results</span>
@@ -167,7 +186,7 @@
                 <aside class="card ranking-card">
                     <p class="eyebrow dark">Hot Ranking</p>
                     <h3>Popular stories this week</h3>
-                    <ol class="ranking-list">
+                    <ol v-if="hotPosts.length" class="ranking-list">
                         <li v-for="(post, index) in hotPosts" :key="post.id">
                             <button class="ranking-item" type="button" @click="openPost(post.id)">
                                 <span class="ranking-item__index">{{ index + 1 }}</span>
@@ -178,6 +197,7 @@
                             </button>
                         </li>
                     </ol>
+                    <p v-else class="muted">{{ hotRankingEmptyMessage }}</p>
                 </aside>
             </div>
 
@@ -205,7 +225,7 @@
                     <button class="ghost-btn small" type="button" @click="focusCollections">Browse collections below</button>
                 </div>
                 <div class="stats-grid">
-                    <article v-for="stat in categoryStats" :key="stat.name" class="stats-card">
+                    <article v-for="stat in categoryStats" :key="stat.id" class="stats-card">
                         <div class="stats-card__top">
                             <strong>{{ translateCategory(stat.name) }}</strong>
                             <span>{{ stat.count }} articles</span>
@@ -214,7 +234,7 @@
                         <div class="stat-bar">
                             <span :style="{ width: stat.percentage + '%' }"></span>
                         </div>
-                        <button class="ghost-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
+                        <button class="ghost-btn small" type="button" @click="inspectCategory(stat.id)">Focus collection</button>
                     </article>
                 </div>
             </section>
@@ -228,7 +248,7 @@
                 </div>
 
                 <div class="category-grid">
-                    <article v-for="stat in categoryStats" :key="stat.name" class="card collection-card">
+                    <article v-for="stat in categoryStats" :key="stat.id" class="card collection-card">
                         <span class="story-chip">{{ stat.count }} items</span>
                         <h3>{{ translateCategory(stat.name) }}</h3>
                         <p class="muted">{{ translateText(stat.description) }}</p>
@@ -237,8 +257,8 @@
                             <strong>{{ stat.topPost ? translateText(stat.topPost.title) : 'Waiting for submissions' }}</strong>
                         </div>
                         <div class="collection-card__actions">
-                            <button class="primary-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
-                            <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(stat.name)">Use in search</button>
+                            <button class="primary-btn small" type="button" @click="inspectCategory(stat.id)">Focus collection</button>
+                            <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(stat.id)">Use in search</button>
                         </div>
                     </article>
                 </div>
@@ -247,7 +267,7 @@
                     <div class="section-head compact">
                         <div>
                             <p class="eyebrow dark">Collection Focus</p>
-                            <h3>{{ translateCategory(focusedCategory) }}</h3>
+                            <h3>{{ translateCategory(focusedCategoryName) }}</h3>
                         </div>
                         <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(focusedCategory)">Use in homepage search</button>
                     </div>
@@ -294,8 +314,9 @@
                 </article>
             </div>
 
-            <div v-if="filteredPosts.length === 0" class="card empty-state">
-                No articles match the current homepage search yet.
+            <div v-if="filteredPosts.length === 0" class="card empty-state home-empty-state">
+                <strong>{{ homepageEmptyStateTitle }}</strong>
+                <p class="muted">{{ homepageEmptyStateMessage }}</p>
             </div>
         </section>
 
@@ -342,6 +363,13 @@
                         <strong>{{ buildHeatScore(selectedPost) }} heat</strong>
                     </div>
 
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Appreciation</p>
+                        <strong>{{ selectedPost.likeCount || 0 }} likes</strong>
+                        <button class="primary-btn small" type="button" style="margin-top: 10px; width: 100%;" @click="likePost">
+                            👍 点赞
+                        </button>
+                    </div>
                     <div class="comment-section">
                         <div class="section-head compact">
                             <h3>Conversation</h3>
@@ -399,7 +427,7 @@
                             Collection
                             <select v-model="postForm.categoryId">
                                 <option value="">Choose a collection</option>
-                                <option v-for="category in categories" :key="category.id" :value="String(category.id)">
+                                <option v-for="category in categories" :key="category.id" :value="category.id">
                                     {{ translateCategory(category.name) }}
                                 </option>
                             </select>
@@ -967,6 +995,7 @@
 </div>
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
