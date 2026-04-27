@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Heritage Exchange Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="container topbar__inner">
+            <button class="brand" type="button" @click="navigate('home')">
+                <span class="brand__crest">H</span>
+                <span>
+                    <strong>Heritage Exchange</strong>
+                    <small>Stories, craft, and memory</small>
+                </span>
+            </button>
+
+            <nav class="topnav" aria-label="Primary navigation">
+                <button class="topnav__link" :class="{ active: currentView === 'home' }" type="button" @click="navigate('home')">
+                    Home
+                </button>
+                <button v-if="isContributor" class="topnav__link" :class="{ active: currentView === 'publish' }" type="button" @click="navigate('publish')">
+                    Drafts
+                </button>
+                <button v-if="isAdmin" class="topnav__link" :class="{ active: currentView === 'admin' }" type="button" @click="navigate('admin')">
+                    Admin
+                </button>
+            </nav>
+
+            <div class="topbar__account">
+                <template v-if="currentUser">
+                    <div class="account-pill">
+                        <span class="account-pill__label">Signed in as</span>
+                        <strong>{{ translateNickname(currentUser.nickname) }}</strong>
+                    </div>
+                    <div class="account-actions">
+                        <button class="ghost-btn small" type="button" @click="navigate('profile')">Profile</button>
+                        <button class="primary-btn small" type="button" @click="logout">Sign out</button>
+                    </div>
+                </template>
+                <template v-else>
+                    <div class="account-actions">
+                        <button class="ghost-btn small" type="button" @click="navigate('profile')">Profile</button>
+                        <button class="primary-btn small" type="button" @click="navigate('auth')">Sign in</button>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </header>
+
+    <section v-if="currentView === 'home'" class="hero">
+        <div class="hero__texture"></div>
+        <div class="container hero__grid">
+            <div class="hero__copy">
+                <p class="eyebrow">Living Heritage Archive</p>
+                <h1>Build a richer front-end archive for essays, collections, and editorial workflows.</h1>
+                <p class="hero__text">
+                    This version expands the platform into a fuller front-end demonstration with homepage search,
+                    popularity ranking, category statistics, a personal workspace, and a lightweight administrator console.
+                </p>
+                <div class="hero__actions">
+                    <button class="primary-btn" type="button" @click="navigate('home')">Open homepage</button>
+                    <button class="ghost-btn" type="button" @click="focusCollections">Browse collections</button>
+                </div>
+            </div>
+
+            <aside class="hero__card card">
+                <p class="eyebrow">Platform Snapshot</p>
+                <h2>A front-end structure ready for richer course project demos.</h2>
+                <p>
+                    The interface now includes a searchable homepage, category board, draft desk,
+                    personal workspace, article detail view, and an administrator workspace.
+                </p>
+                <div class="hero__stats">
+                    <div>
+                        <strong>{{ totalStories }}</strong>
+                        <span>Stories</span>
+                    </div>
+                    <div>
+                        <strong>{{ categories.length }}</strong>
+                        <span>Collections</span>
+                    </div>
+                    <div>
+                        <strong>{{ totalContributors }}</strong>
+                        <span>Contributors</span>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <main class="container main-shell" :class="{ 'main-shell--home': currentView === 'home' }">
+        <section v-if="currentView === 'home'" class="toolbar card">
+            <div class="toolbar__left">
+                <div class="toolbar__hint">
+                    <p class="toolbar__label">Current Mode</p>
+                    <strong>{{ currentViewLabel }}</strong>
+                </div>
+                <div class="toolbar__hint">
+                    <p class="toolbar__label">Archive Scale</p>
+                    <strong>{{ totalStories }} stories across {{ categories.length }} collections</strong>
+                </div>
+            </div>
+
+            <div class="toolbar__right">
+                <div class="message-inline">
+                    <span class="message-inline__label">Status</span>
+                    <strong>{{ currentUser ? 'Signed in and ready to manage drafts, reviews, and published articles.' : 'Guest mode enabled. Sign in to access draft and profile views.' }}</strong>
+                </div>
+            </div>
+        </section>
+
+        <div v-if="loading" class="card empty-state">Loading...</div>
+        <div v-if="successMessage" class="message success">{{ successMessage }}</div>
+        <div v-if="errorMessage" class="message error">{{ errorMessage }}</div>
+
+        <section v-show="currentView === 'home'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Homepage</p>
+                    <h2>Search, ranking, and archive overview</h2>
+                </div>
+                <button class="ghost-btn" type="button" @click="fetchPosts">Refresh data</button>
+            </div>
+
+            <div class="metric-grid">
+                <article class="card metric-card">
+                    <span class="metric-card__label">Total stories</span>
+                    <strong class="metric-card__value">{{ totalStories }}</strong>
+                    <p class="metric-card__detail">Published articles currently visible in the front-end archive.</p>
+                </article>
+                <article class="card metric-card">
+                    <span class="metric-card__label">Discussion activity</span>
+                    <strong class="metric-card__value">{{ totalComments }}</strong>
+                    <p class="metric-card__detail">Comment count used to support homepage momentum and ranking.</p>
+                </article>
+                <article class="card metric-card">
+                    <span class="metric-card__label">Contributors</span>
+                    <strong class="metric-card__value">{{ totalContributors }}</strong>
+                    <p class="metric-card__detail">Distinct author names appearing across the current story feed.</p>
+                </article>
+            </div>
+
+            <div class="home-shell">
+                <section class="card search-panel">
+                    <p class="eyebrow dark">Archive Search</p>
+                    <h3>Search articles by title, place, category, or contributor.</h3>
+                    <div class="search-panel__controls">
+                        <input v-model="homeSearchQuery" type="text" placeholder="Search the archive">
+                        <select v-model="selectedCategoryFilter">
+                            <option value="">All collections</option>
+                            <option v-for="category in categories" :key="category.id" :value="category.name">
+                                {{ translateCategory(category.name) }}
+                            </option>
+                        </select>
+                    </div>
+                    <div class="tag-list">
+                        <span class="story-chip">{{ filteredPosts.length }} results</span>
+                        <button class="ghost-btn small" type="button" @click="clearHomeSearch">Clear filters</button>
+                    </div>
+                </section>
+
+                <aside class="card ranking-card">
+                    <p class="eyebrow dark">Hot Ranking</p>
+                    <h3>Popular stories this week</h3>
+                    <ol class="ranking-list">
+                        <li v-for="(post, index) in hotPosts" :key="post.id">
+                            <button class="ranking-item" type="button" @click="openPost(post.id)">
+                                <span class="ranking-item__index">{{ index + 1 }}</span>
+                                <span class="ranking-item__body">
+                                    <strong>{{ translateText(post.title) }}</strong>
+                                    <small>{{ translateCategory(post.categoryName) }} · {{ buildHeatScore(post) }} heat</small>
+                                </span>
+                            </button>
+                        </li>
+                    </ol>
+                </aside>
+            </div>
+
+            <article v-if="featuredPost" class="featured-story card">
+                <div class="featured-story__cover" :style="{ backgroundImage: buildCover(featuredPost.coverImageUrl) }"></div>
+                <div class="featured-story__body">
+                    <span class="story-chip">{{ translateCategory(featuredPost.categoryName) }}</span>
+                    <h3>{{ translateText(featuredPost.title) }}</h3>
+                    <p class="featured-story__meta">
+                        {{ translateHeritageName(featuredPost.heritageName) }} · {{ translateRegion(featuredPost.region) }}
+                    </p>
+                    <p class="muted">
+                        By {{ translateNickname(featuredPost.authorName) }} · {{ formatDate(featuredPost.createdAt) }}
+                    </p>
+                    <button class="primary-btn small" type="button" @click="openPost(featuredPost.id)">Read article</button>
+                </div>
+            </article>
+
+            <section class="card category-stats-card">
+                <div class="section-head compact">
+                    <div>
+                        <p class="eyebrow dark">Category Statistics</p>
+                        <h3>Distribution across collections</h3>
+                    </div>
+                    <button class="ghost-btn small" type="button" @click="focusCollections">Browse collections below</button>
+                </div>
+                <div class="stats-grid">
+                    <article v-for="stat in categoryStats" :key="stat.name" class="stats-card">
+                        <div class="stats-card__top">
+                            <strong>{{ translateCategory(stat.name) }}</strong>
+                            <span>{{ stat.count }} articles</span>
+                        </div>
+                        <p>{{ translateText(stat.description) }}</p>
+                        <div class="stat-bar">
+                            <span :style="{ width: stat.percentage + '%' }"></span>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
+                    </article>
+                </div>
+            </section>
+
+            <section ref="homeCollectionsSection" class="view-stack">
+                <div class="section-head">
+                    <div>
+                        <p class="eyebrow dark">Collection Overview</p>
+                        <h2>Browse categories inside the homepage</h2>
+                    </div>
+                </div>
+
+                <div class="category-grid">
+                    <article v-for="stat in categoryStats" :key="stat.name" class="card collection-card">
+                        <span class="story-chip">{{ stat.count }} items</span>
+                        <h3>{{ translateCategory(stat.name) }}</h3>
+                        <p class="muted">{{ translateText(stat.description) }}</p>
+                        <div class="collection-card__meta">
+                            <span>Top story</span>
+                            <strong>{{ stat.topPost ? translateText(stat.topPost.title) : 'Waiting for submissions' }}</strong>
+                        </div>
+                        <div class="collection-card__actions">
+                            <button class="primary-btn small" type="button" @click="inspectCategory(stat.name)">Focus collection</button>
+                            <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(stat.name)">Use in search</button>
+                        </div>
+                    </article>
+                </div>
+
+                <section class="card category-showcase" v-if="focusedCategory">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Collection Focus</p>
+                            <h3>{{ translateCategory(focusedCategory) }}</h3>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="applyCategoryToSearch(focusedCategory)">Use in homepage search</button>
+                    </div>
+
+                    <div class="post-grid">
+                        <article v-for="post in focusedCategoryPosts" :key="post.id" class="post-card card">
+                            <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }"></div>
+                            <div class="post-card__body">
+                                <h3>{{ translateText(post.title) }}</h3>
+                                <p class="muted">{{ translateHeritageName(post.heritageName) }} · {{ translateRegion(post.region) }}</p>
+                                <div class="meta-row">
+                                    <span>{{ buildHeatScore(post) }} heat</span>
+                                    <span>{{ formatShortDate(post.createdAt) }}</span>
+                                </div>
+                                <button class="ghost-btn small" type="button" @click="openPost(post.id)">View article</button>
+                            </div>
+                        </article>
+                    </div>
+                </section>
+            </section>
+
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Browse Articles</p>
+                    <h2>Search results and recent stories</h2>
+                </div>
+            </div>
+
+            <div class="post-grid">
+                <article v-for="post in filteredPosts" :key="post.id" class="post-card card">
+                    <div class="post-card__cover" :style="{ backgroundImage: buildCover(post.coverImageUrl) }">
+                        <span class="story-chip">{{ translateCategory(post.categoryName) }}</span>
+                    </div>
+                    <div class="post-card__body">
+                        <h3>{{ translateText(post.title) }}</h3>
+                        <p class="muted">{{ translateHeritageName(post.heritageName) }} · {{ translateRegion(post.region) }}</p>
+                        <p class="muted">By {{ translateNickname(post.authorName) }}</p>
+                        <div class="meta-row">
+                            <span>{{ post.commentCount }} comments</span>
+                            <span>{{ formatShortDate(post.createdAt) }}</span>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="openPost(post.id)">View article</button>
+                    </div>
+                </article>
+            </div>
+
+            <div v-if="filteredPosts.length === 0" class="card empty-state">
+                No articles match the current homepage search yet.
+            </div>
+        </section>
+
+        <section v-show="currentView === 'detail'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Reading Room</p>
+                    <h2>Article Detail</h2>
+                </div>
+                <div class="section-head__actions">
+                    <button class="ghost-btn small" type="button" @click="navigate('home')">Back to homepage</button>
+                </div>
+            </div>
+
+            <div v-if="selectedPost" class="detail-layout">
+                <article class="card detail-card">
+                    <div class="detail-cover" :style="{ backgroundImage: buildCover(selectedPost.coverImageUrl) }"></div>
+                    <span class="story-chip">{{ translateCategory(selectedPost.categoryName) }}</span>
+                    <h2>{{ translateText(selectedPost.title) }}</h2>
+                    <p class="muted">
+                        {{ translateHeritageName(selectedPost.heritageName) }} · {{ translateRegion(selectedPost.region) }}
+                    </p>
+                    <p class="muted">
+                        By {{ translateNickname(selectedPost.authorName) }} · {{ formatDate(selectedPost.createdAt) }}
+                    </p>
+                    <div class="detail-content">{{ translateText(selectedPost.content) }}</div>
+
+                    <div class="image-gallery" v-if="selectedPost.imageUrls && selectedPost.imageUrls.length">
+                        <img v-for="image in selectedPost.imageUrls" :key="image" :src="resolveAsset(image)" alt="Article illustration">
+                    </div>
+                </article>
+
+                <aside class="card detail-side">
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Collection</p>
+                        <strong>{{ translateCategory(selectedPost.categoryName) }}</strong>
+                    </div>
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Discussion</p>
+                        <strong>{{ selectedPost.commentCount }} comments</strong>
+                    </div>
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Popularity</p>
+                        <strong>{{ buildHeatScore(selectedPost) }} heat</strong>
+                    </div>
+                    <div class="detail-side__block">
+                        <p class="toolbar__label">Likes</p>
+                        <strong>{{ displayLikeCount(selectedPost) }} likes</strong>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="toggleLike(selectedPost)">{{ isPostLiked(selectedPost.id) ? 'Unlike article' : 'Like article' }}</button>
+                        </div>
+                    </div>
+
+                    <div class="comment-section">
+                        <div class="section-head compact">
+                            <h3>Conversation</h3>
+                        </div>
+
+                        <div v-if="selectedPost.comments && selectedPost.comments.length" class="comment-list">
+                            <div v-for="comment in selectedPost.comments" :key="comment.id" class="comment-item">
+                                <strong>{{ translateNickname(comment.authorNickname) }}</strong>
+                                <span>{{ formatDate(comment.createdAt) }}</span>
+                                <p>{{ translateText(comment.content) }}</p>
+                            </div>
+                        </div>
+                        <p v-else class="muted">No comments yet.</p>
+
+                        <form class="comment-form" @submit.prevent="submitComment">
+                            <textarea v-model="commentForm.content" rows="4" placeholder="Write a thoughtful response to this heritage story..."></textarea>
+                            <button class="primary-btn small" type="submit">Post comment</button>
+                        </form>
+                    </div>
+                </aside>
+            </div>
+
+            <div v-else class="card empty-state">Select an article from the archive first.</div>
+        </section>
+
+        <section v-show="currentView === 'publish'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Contribution Desk</p>
+                    <h2>{{ editingPostId ? 'Edit Draft or Rejected Article' : 'Create a Draft' }}</h2>
+                </div>
+            </div>
+
+            <div class="form-layout">
+                <form class="card form-card" @submit.prevent="submitPost">
+                    <div class="message-inline">
+                        <span class="message-inline__label">Workflow</span>
+                        <strong>{{ editingPostId ? 'Current status: ' + statusLabel(editingPostStatus) + '. Save changes here before submitting for review.' : 'Save a draft first, then submit it for review.' }}</strong>
+                    </div>
+                    <p v-if="editingRejectReason" class="muted">Latest rejection reason: {{ editingRejectReason }}</p>
+                    <div class="form-grid">
+                        <label>
+                            Title
+                            <input v-model="postForm.title" type="text" placeholder="For example: The Needlework Elegance of Suzhou Embroidery">
+                        </label>
+                        <label>
+                            Heritage Item
+                            <input v-model="postForm.heritageName" type="text" placeholder="For example: Suzhou Embroidery">
+                        </label>
+                        <label>
+                            Region
+                            <input v-model="postForm.region" type="text" placeholder="For example: Suzhou, Jiangsu">
+                        </label>
+                        <label>
+                            Collection
+                            <select v-model="postForm.categoryId">
+                                <option value="">Choose a collection</option>
+                                <option v-for="category in categories" :key="category.id" :value="String(category.id)">
+                                    {{ translateCategory(category.name) }}
+                                </option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <label>
+                        Story Text
+                        <textarea v-model="postForm.content" rows="8" placeholder="Describe the history, technique, cultural value, and visual details of the heritage item."></textarea>
+                    </label>
+
+                    <label>
+                        Upload Cover Image
+                        <div class="file-picker">
+                            <input ref="coverFileInput" class="file-picker__input" type="file" accept="image/*" @change="handleCoverUpload">
+                            <button class="ghost-btn small" type="button" @click="triggerFilePicker('coverFileInput')">Choose file</button>
+                            <span class="file-picker__name">{{ coverFileLabel }}</span>
+                        </div>
+                    </label>
+                    <p class="muted" v-if="postForm.coverImageUrl">Cover ready: {{ postForm.coverImageUrl }}</p>
+
+                    <label>
+                        Upload Gallery Images
+                        <div class="file-picker">
+                            <input ref="galleryFileInput" class="file-picker__input" type="file" accept="image/*" multiple @change="handleGalleryUpload">
+                            <button class="ghost-btn small" type="button" @click="triggerFilePicker('galleryFileInput')">Choose files</button>
+                            <span class="file-picker__name">{{ galleryFileLabel }}</span>
+                        </div>
+                    </label>
+                    <div class="tag-list" v-if="postForm.imageUrls.length">
+                        <span class="story-chip" v-for="image in postForm.imageUrls" :key="image">{{ image.split('/').pop() }}</span>
+                    </div>
+
+                    <div class="request-actions">
+                        <button class="primary-btn" type="submit">{{ publishPrimaryLabel }}</button>
+                        <button v-if="canSubmitForReview" class="ghost-btn" type="button" @click="submitCurrentPostForReview">Submit for review</button>
+                        <button v-if="editingPostId" class="ghost-btn" type="button" @click="resetPostEditor">New draft</button>
+                    </div>
+                </form>
+
+                <aside class="card guide-card">
+                    <p class="eyebrow dark">Editorial Guidance</p>
+                    <h3>What makes a strong heritage article?</h3>
+                    <ul class="guide-list">
+                        <li>Explain historical context before describing visual details.</li>
+                        <li>Use photography to document materials, tools, motifs, or architecture.</li>
+                        <li>Keep the tone respectful, precise, and culturally grounded.</li>
+                    </ul>
+                </aside>
+            </div>
+        </section>
+
+        <section v-show="currentView === 'profile'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Personal Workspace</p>
+                    <h2>Profile, likes, submissions, and requests</h2>
+                </div>
+            </div>
+
+            <div v-if="!currentUser" class="card empty-state">
+                Create an account to open your personal workspace, save liked articles, and manage contributor access.
+            </div>
+
+            <template v-else>
+                <div class="profile-shell">
+                    <section class="card profile-hero">
+                        <div class="profile-hero__main">
+                            <div class="profile-identity">
+                                <div v-if="currentUser.avatarUrl" class="profile-avatar profile-avatar--image">
+                                    <img :src="resolveAsset(currentUser.avatarUrl)" :alt="`${translateNickname(currentUser.nickname)} avatar`">
+                                </div>
+                                <div v-else class="profile-avatar">{{ userInitials(currentUser.nickname) }}</div>
+                            </div>
+                            <div class="profile-heading">
+                                <p class="eyebrow dark">{{ profileIdentityHeading }}</p>
+                                <div class="profile-heading__title">
+                                    <h2>{{ translateNickname(currentUser.nickname) }}</h2>
+                                </div>
+                                <p class="muted">{{ profileIdentityLabel }}</p>
+                                <div class="request-actions">
+                                    <button class="ghost-btn small" type="button" @click="openProfileEditor('profile')">Modify profile</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="profile-hero__stats">
+                            <div v-if="canAccessContributorWorkspace">
+                                <strong>{{ profileSummary.published }}</strong>
+                                <span>Published</span>
+                            </div>
+                            <div v-if="canAccessContributorWorkspace">
+                                <strong>{{ profileSummary.pending }}</strong>
+                                <span>Pending</span>
+                            </div>
+                            <div v-if="canAccessContributorWorkspace">
+                                <strong>{{ profileSummary.drafts }}</strong>
+                                <span>Drafts</span>
+                            </div>
+                            <div>
+                                <strong>{{ profileSummary.liked }}</strong>
+                                <span>Liked</span>
+                            </div>
+                            <div>
+                                <strong>{{ profileSummary.requests }}</strong>
+                                <span>Requests</span>
+                            </div>
+                        </div>
+                    </section>
+                    <aside class="card profile-bio-card">
+                        <p class="eyebrow dark">Personal Bio</p>
+                        <h3>Introduction</h3>
+                        <p class="muted profile-bio-copy">{{ currentUser.bio ? currentUser.bio : 'Add a short introduction so other readers can understand your focus and interests.' }}</p>
+                    </aside>
+                </div>
+
+                <section v-if="profileEditingMode" class="card profile-edit-card">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Profile Settings</p>
+                            <h3>Update profile</h3>
+                        </div>
+                    </div>
+                    <div class="profile-edit-grid">
+                        <div class="profile-avatar-editor">
+                            <div v-if="profileForm.avatarUrl" class="profile-avatar profile-avatar--image profile-avatar--editor">
+                                <img :src="resolveAsset(profileForm.avatarUrl)" :alt="`${translateNickname(profileForm.nickname || currentUser.nickname)} avatar preview`">
+                            </div>
+                            <div v-else class="profile-avatar profile-avatar--editor">{{ userInitials(profileForm.nickname || currentUser.nickname) }}</div>
+                            <div class="request-actions">
+                                <button class="ghost-btn small" type="button" @click="triggerFilePicker('profileAvatarInput')">Upload avatar</button>
+                                <button v-if="profileForm.avatarUrl" class="ghost-btn small" type="button" @click="clearProfileAvatar">Remove avatar</button>
+                                <input ref="profileAvatarInput" class="sr-only" type="file" accept="image/*" @change="handleProfileAvatarUpload">
+                            </div>
+                            <p class="muted">{{ profileAvatarFileLabel }}</p>
+                        </div>
+                        <form class="profile-edit-form" @submit.prevent="saveProfile">
+                            <label>
+                                Display Name
+                                <input v-model="profileForm.nickname" type="text" maxlength="50" placeholder="How your name appears across the archive">
+                            </label>
+                            <label>
+                                Personal Bio
+                                <textarea v-model="profileForm.bio" rows="5" placeholder="Share your background, research interests, or connection to heritage stories."></textarea>
+                            </label>
+                            <p class="muted profile-edit-form__hint">{{ profileBioByteCount }}/500 bytes</p>
+                            <div class="request-actions">
+                                <button class="primary-btn small" type="submit">Save profile</button>
+                                <button class="ghost-btn small" type="button" @click="closeProfileEditor">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+
+                <div class="tab-row">
+                    <button v-if="canAccessContributorWorkspace" class="tab-btn" :class="{ active: profileSection === 'published' }" type="button" @click="selectProfileSection('published')">Published Articles</button>
+                    <button v-if="canAccessContributorWorkspace" class="tab-btn" :class="{ active: profileSection === 'pending' }" type="button" @click="selectProfileSection('pending')">Pending Review</button>
+                    <button v-if="canAccessContributorWorkspace" class="tab-btn" :class="{ active: profileSection === 'drafts' }" type="button" @click="selectProfileSection('drafts')">Draft Box</button>
+                    <button class="tab-btn" :class="{ active: profileSection === 'liked' }" type="button" @click="selectProfileSection('liked')">Liked Articles</button>
+                    <button v-if="showPermissionRequestModule" class="tab-btn" :class="{ active: profileSection === 'permissions' }" type="button" @click="selectProfileSection('permissions')">Permission Requests</button>
+                </div>
+
+                <div v-if="profileSection === 'published' && canAccessContributorWorkspace" class="list-grid">
+                    <article v-for="entry in profilePublishedPosts" :key="entry.id" class="card entry-card">
+                        <span class="story-chip">{{ translateCategory(entry.categoryName) }}</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateHeritageName(entry.heritageName) }} · {{ translateRegion(entry.region) }}</p>
+                        <div class="entry-card__meta">
+                            <span>{{ statusLabel(entry.status) }}</span>
+                            <span>{{ entry.commentCount || 0 }} comments</span>
+                            <span>{{ formatShortDate(entry.createdAt) }}</span>
+                        </div>
+                    </article>
+                    <div v-if="!profilePublishedPosts.length" class="card empty-state">No published articles yet.</div>
+                </div>
+
+                <div v-else-if="profileSection === 'pending' && canAccessContributorWorkspace" class="list-grid">
+                    <article v-for="entry in workspacePending" :key="entry.id" class="card entry-card">
+                        <span class="status-chip status-chip--pending-review">{{ statusLabel(entry.status) }}</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
+                        <div class="entry-card__meta">
+                            <span v-if="entry.submittedAt">Submitted {{ formatShortDate(entry.submittedAt) }}</span>
+                            <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
+                        </div>
+                    </article>
+                    <div v-if="!workspacePending.length" class="card empty-state">No articles are waiting for review right now.</div>
+                </div>
+
+                <div v-else-if="profileSection === 'drafts' && canAccessContributorWorkspace" class="list-grid">
+                    <article v-for="entry in workspaceDrafts" :key="entry.id" class="card entry-card">
+                        <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateCategory(entry.categoryName) }}</p>
+                        <p v-if="entry.rejectReason"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
+                        <div class="entry-card__meta">
+                            <span v-if="entry.submittedAt">Last submitted {{ formatShortDate(entry.submittedAt) }}</span>
+                            <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
+                        </div>
+                        <button class="ghost-btn small" type="button" @click="editPost(entry)">Edit</button>
+                    </article>
+                    <div v-if="!workspaceDrafts.length" class="card empty-state">No drafts or rejected articles yet.</div>
+                </div>
+
+                <div v-else-if="profileSection === 'liked'" class="list-grid">
+                    <article v-for="entry in likedPosts" :key="entry.id" class="card entry-card">
+                        <span class="story-chip">{{ translateCategory(entry.categoryName) }}</span>
+                        <h3>{{ translateText(entry.title) }}</h3>
+                        <p class="muted">{{ translateHeritageName(entry.heritageName) }} è·¯ {{ translateRegion(entry.region) }}</p>
+                        <div class="entry-card__meta">
+                            <span>{{ displayLikeCount(entry) }} likes</span>
+                            <span>{{ entry.commentCount || 0 }} comments</span>
+                            <span>{{ formatShortDate(entry.createdAt) }}</span>
+                        </div>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="openPost(entry.id)">Open article</button>
+                            <button class="ghost-btn small" type="button" @click="toggleLike(entry)">{{ isPostLiked(entry.id) ? 'Unlike' : 'Like' }}</button>
+                        </div>
+                    </article>
+                    <div v-if="!likedPosts.length" class="card empty-state">No liked articles yet. Open a story and save the ones you want to revisit.</div>
+                </div>
+
+                <div v-else-if="showPermissionRequestModule" class="permissions-stack">
+                    <article v-if="canApplyForContributor" class="card request-card request-card--action">
+                        <p class="eyebrow dark">Apply for Access</p>
+                        <h3>Contributor access application</h3>
+                        <p class="muted">Submit a request to become a contributor. You will need to provide a reason for your application.</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label for="application-reason" class="block text-sm font-medium text-gray-700 mb-1">Application Reason</label>
+                                <textarea 
+                                    id="application-reason" 
+                                    v-model="contributorApplicationForm.applicationReason" 
+                                    rows="4" 
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    placeholder="Please explain why you want to become a contributor..."
+                                ></textarea>
+                            </div>
+                            
+                            <div>
+                                <label for="attachment" class="block text-sm font-medium text-gray-700 mb-1">Attachment (PDF only)</label>
+                                <div class="flex items-center space-x-4">
+                                    <input 
+                                        id="attachment" 
+                                        type="file" 
+                                        accept=".pdf" 
+                                        @change="handleAttachmentChange" 
+                                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200"
+                                    />
+                                    <span v-if="attachmentFileLabel !== 'No file selected'" class="text-sm text-gray-600">{{ attachmentFileLabel }}</span>
+                                    <span v-else class="text-sm text-gray-400">{{ attachmentFileLabel }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="request-actions mt-4">
+                            <button class="ghost-btn small" type="button" @click="submitPermissionRequest">Submit Application</button>
+                        </div>
+                    </article>
+
+                    <article v-else class="card request-card request-card--action">
+                        <p class="eyebrow dark">Apply for Access</p>
+                        <h3>Contributor access application</h3>
+                        <p v-if="currentUser?.role === 'USER' && latestContributorApplication?.status === 'PENDING'" class="muted">Your current contributor application is still pending review.</p>
+                        <p v-else-if="currentUser?.role === 'CONTRIBUTOR'" class="muted">You already have contributor access.</p>
+                        <p v-else-if="currentUser?.role === 'ADMIN'" class="muted">Administrator accounts do not need contributor access requests.</p>
+                        <p v-else class="muted">Submit a single request to become a contributor.</p>
+                        <div class="request-actions">
+                            <span class="muted">No new contributor request can be submitted right now.</span>
+                        </div>
+                    </article>
+
+                    <article class="card request-card">
+                        <p class="eyebrow dark">Request History</p>
+                        <h3>Track your contributor application status</h3>
+                        <p class="muted">{{ myContributorApplicationResultCountLabel }}</p>
+                        <p class="muted">{{ myContributorApplicationFilterSummary }}</p>
+                        <div class="request-actions">
+                            <select v-model="myContributorApplicationStatusFilter">
+                                <option value="">All statuses</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="REJECTED">Rejected</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="clearMyContributorApplicationFilter">Clear</button>
+                        </div>
+
+                        <div class="request-history-list">
+                            <article v-for="entry in myContributorApplicationsView" :key="entry.id" class="request-history-item">
+                                <div class="request-card__top">
+                                    <h3>{{ contributorApplicationTitle() }}</h3>
+                                    <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
+                                </div>
+                                <p>{{ contributorApplicationNote(entry) }}</p>
+                                <p v-if="entry.rejectReason"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
+                                <div class="entry-card__meta">
+                                    <span>Submitted {{ formatShortDate(entry.createdAt) }}</span>
+                                    <span v-if="entry.reviewedAt">Reviewed {{ formatShortDate(entry.reviewedAt) }}</span>
+                                    <span v-if="entry.reviewerName">Reviewed by {{ translateNickname(entry.reviewerName) }}</span>
+                                </div>
+                            </article>
+                            <div v-if="!myContributorApplicationsView.length" class="empty-state empty-state--inline">{{ myContributorApplicationEmptyLabel }}</div>
+                        </div>
+                    </article>
+                </div>
+            </template>
+        </section>
+
+        <section v-show="currentView === 'admin'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Administrator Page</p>
+                    <h2>Article management, user management, and approvals</h2>
+                </div>
+            </div>
+
+            <div v-if="!isAdmin" class="card empty-state">
+                Sign in with the administrator account to preview the administration interface.
+            </div>
+
+            <template v-else>
+                <div class="metric-grid">
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Managed articles</span>
+                        <strong class="metric-card__value">{{ adminArticles.length }}</strong>
+                        <p class="metric-card__detail">Live article states across review, published, archived, and draft flows.</p>
+                    </article>
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Managed users</span>
+                        <strong class="metric-card__value">{{ adminUsersView.length }}</strong>
+                        <p class="metric-card__detail">Preview table for contributor roles and account states.</p>
+                    </article>
+                    <article class="card metric-card">
+                        <span class="metric-card__label">Approval queue</span>
+                        <strong class="metric-card__value">{{ adminApprovalsView.length }}</strong>
+                        <p class="metric-card__detail">Pending review items currently waiting in the administrator queue.</p>
+                    </article>
+                </div>
+
+                <div class="tab-row">
+                    <button class="tab-btn" :class="{ active: adminSection === 'articles' }" type="button" @click="selectAdminSection('articles')">Article Management</button>
+                    <button class="tab-btn" :class="{ active: adminSection === 'users' }" type="button" @click="selectAdminSection('users')">User Management</button>
+                    <button class="tab-btn" :class="{ active: adminSection === 'approvals' }" type="button" @click="selectAdminSection('approvals')">Approvals</button>
+                </div>
+
+                <section v-if="adminSection === 'articles'" class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Article Management</p>
+                            <h3>Review article states and update publication status</h3>
+                            <p class="muted">{{ adminResultCountLabel }}</p>
+                            <p class="muted">{{ adminResultSummary }}</p>
+                            <p class="muted">{{ adminSortSummary }}</p>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="adminTitleQuery" type="text" placeholder="Search by title">
+                            <select v-model="adminFilterStatus">
+                                <option value="">All statuses</option>
+                                <option value="PENDING_REVIEW">Pending Review</option>
+                                <option value="PUBLISHED">Published</option>
+                                <option value="REJECTED">Rejected</option>
+                                <option value="ARCHIVED">Archived</option>
+                                <option value="DRAFT">Draft</option>
+                            </select>
+                            <select v-model="adminSortOption">
+                                <option value="UPDATED_DESC">Recently updated</option>
+                                <option value="SUBMITTED_DESC">Recently submitted</option>
+                                <option value="REVIEWED_DESC">Recently reviewed</option>
+                            </select>
+                            <select v-model.number="adminPostSize" @change="changeAdminPostSize">
+                                <option :value="10">10 / page</option>
+                                <option :value="20">20 / page</option>
+                                <option :value="50">50 / page</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminPosts">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminSearch">Clear</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Collection</th>
+                                <th>Author</th>
+                                <th>Status</th>
+                                <th>{{ adminSortColumnLabel }}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="row in adminArticles" :key="row.id" @click="openAdminPost(row.id)">
+                                <td>{{ translateText(row.title) }}</td>
+                                <td>{{ translateCategory(row.categoryName) }}</td>
+                                <td>{{ translateNickname(row.authorName) }}</td>
+                                <td><span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
+                                <td>{{ formatShortDate(adminSortValue(row)) }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-if="adminArticles.length" class="request-actions">
+                        <p class="muted">{{ adminPaginationLabel }}</p>
+                        <button class="ghost-btn small" type="button" :disabled="!adminPostHasPrevious" @click="goToPreviousAdminPostPage">Previous</button>
+                        <button class="ghost-btn small" type="button" :disabled="!adminPostHasNext" @click="goToNextAdminPostPage">Next</button>
+                    </div>
+                    <article v-if="selectedAdminPost" class="card request-card">
+                        <div class="request-card__top">
+                            <h3>{{ translateText(selectedAdminPost.title) }}</h3>
+                            <span class="status-chip" :class="statusClass(selectedAdminPost.status)">{{ statusLabel(selectedAdminPost.status) }}</span>
+                        </div>
+                        <div v-if="pendingQueueReturnToApprovals" class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="returnToPendingQueue">Back to approval queue</button>
+                        </div>
+                        <p class="muted">{{ translateCategory(selectedAdminPost.categoryName) }} · {{ translateNickname(selectedAdminPost.authorName) }}</p>
+                        <p>{{ translateText(selectedAdminPost.content) }}</p>
+                        <p v-if="selectedAdminPost.rejectReason" class="muted">Rejection reason: {{ selectedAdminPost.rejectReason }}</p>
+                        <div class="entry-card__meta">
+                            <span v-if="selectedAdminPost.submittedAt">Submitted {{ formatShortDate(selectedAdminPost.submittedAt) }}</span>
+                            <span v-if="selectedAdminPost.reviewedAt">Reviewed {{ formatShortDate(selectedAdminPost.reviewedAt) }}</span>
+                            <span v-if="reviewerLabel(selectedAdminPost)">Reviewed by {{ translateNickname(reviewerLabel(selectedAdminPost)) }}</span>
+                        </div>
+                        <label v-if="selectedAdminPost.status === 'PENDING_REVIEW'">
+                            Rejection Reason
+                            <textarea v-model="adminReviewReason" rows="3" placeholder="Explain why this article should be revised."></textarea>
+                        </label>
+                        <div class="request-actions">
+                            <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="primary-btn small" type="button" @click="approveSelectedAdminPost">Approve</button>
+                            <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="ghost-btn small" type="button" @click="rejectSelectedAdminPost">Reject</button>
+                            <button v-if="selectedAdminPost.status === 'PUBLISHED'" class="ghost-btn small" type="button" @click="archiveSelectedAdminPost">Archive</button>
+                            <button v-if="selectedAdminPost.status === 'ARCHIVED'" class="ghost-btn small" type="button" @click="restoreSelectedAdminPost">Restore</button>
+                        </div>
+                    </article>
+                    <div v-if="!adminArticles.length" class="card empty-state">No articles match the current filter.</div>
+                </section>
+
+                <section v-else-if="adminSection === 'users'" class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">User Management</p>
+                            <h3>Review roles, activity, and account states</h3>
+                            <p class="muted">{{ adminUserResultCountLabel }}</p>
+                            <p class="muted">{{ adminUserFilterSummary }}</p>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="adminUserQuery" type="text" placeholder="Search by username">
+                            <select v-model="adminUserRoleFilter">
+                                <option value="">All roles</option>
+                                <option value="USER">User</option>
+                                <option value="CONTRIBUTOR">Contributor</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                            <select v-model="adminUserActiveFilter">
+                                <option value="">All statuses</option>
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminUsers">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminUserSearch">Clear</button>
+                        </div>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Display name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Contributions</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="row in adminUsersView" :key="row.id">
+                                <td>{{ row.username }}</td>
+                                <td>{{ translateNickname(row.nickname) }}</td>
+                                <td>{{ roleLabel(row.role) }}</td>
+                                <td>{{ row.status }}</td>
+                                <td>{{ row.contributions }}</td>
+                                <td>
+                                    <div v-if="canManageUserRole(row)" class="request-actions">
+                                        <button
+                                            class="ghost-btn small"
+                                            type="button"
+                                            @click="updateAdminUserRole(row.id, nextUserRole(row))"
+                                        >
+                                            {{ nextUserRoleLabel(row) }}
+                                        </button>
+                                        <button
+                                            class="ghost-btn small"
+                                            type="button"
+                                            @click="row.active ? deactivateAdminUser(row.id) : activateAdminUser(row.id)"
+                                        >
+                                            {{ nextUserActiveActionLabel(row) }}
+                                        </button>
+                                    </div>
+                                    <span v-else class="muted">Protected</span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-if="!adminUsersView.length" class="card empty-state">No users match the current filter.</div>
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Contributor Applications</p>
+                            <h3>Review pending contributor access requests</h3>
+                            <p class="muted">{{ adminContributorApplicationResultCountLabel }}</p>
+                            <p class="muted">{{ adminContributorApplicationFilterSummary }}</p>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="adminContributorApplicationQuery" type="text" placeholder="Search by username">
+                            <select v-model="adminContributorApplicationStatusFilter">
+                                <option value="">All statuses</option>
+                                <option value="PENDING">Pending</option>
+                                <option value="APPROVED">Approved</option>
+                                <option value="REJECTED">Rejected</option>
+                            </select>
+                            <select v-model="adminContributorApplicationSortBy">
+                                <option value="created_at_desc">By time (newest first)</option>
+                                <option value="applicant_username_asc">By username (A-Z)</option>
+                            </select>
+                            <button class="ghost-btn small" type="button" @click="searchAdminContributorApplications">Search</button>
+                            <button class="ghost-btn small" type="button" @click="clearAdminContributorApplications">Clear</button>
+                        </div>
+                    </div>
+                    <div class="approval-list">
+                        <article v-for="entry in adminContributorApplicationsView" :key="entry.id" class="approval-card">
+                            <div class="approval-card__top">
+                                <h3>{{ contributorApplicationTitle() }}</h3>
+                                <span class="status-chip" :class="statusClass(entry.status)">{{ statusLabel(entry.status) }}</span>
+                            </div>
+                            <p class="muted">{{ entry.applicantUsername }} · {{ translateNickname(entry.applicantNickname) }}</p>
+                            <p v-if="entry.applicationReason" class="mt-2"><strong>Application Reason:</strong> {{ entry.applicationReason }}</p>
+                            <p v-if="entry.attachmentPath" class="mt-1"><strong>Attachment:</strong> <a :href="entry.attachmentPath" target="_blank">View PDF</a></p>
+                            <div class="entry-card__meta mt-2">
+                                <span>Submitted {{ formatShortDate(entry.createdAt) }}</span>
+                                <span v-if="entry.reviewedAt">Reviewed {{ formatShortDate(entry.reviewedAt) }}</span>
+                                <span v-if="entry.reviewerName">Reviewed by {{ translateNickname(entry.reviewerName) }}</span>
+                            </div>
+                            <label v-if="entry.status === 'PENDING'" class="mt-2">
+                                Rejection reason
+                                <textarea
+                                    v-model="contributorApplicationRejectReasons[entry.id]"
+                                    rows="2"
+                                    placeholder="Explain why this contributor application is being rejected."
+                                ></textarea>
+                            </label>
+                            <p v-if="entry.rejectReason" class="mt-2"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
+                            <div class="request-actions mt-2">
+                                <button v-if="entry.status === 'PENDING'" class="primary-btn small" type="button" @click="approveContributorApplication(entry.id)">Approve</button>
+                                <button v-if="entry.status === 'PENDING'" class="ghost-btn small" type="button" @click="rejectContributorApplication(entry.id)">Reject</button>
+                            </div>
+                        </article>
+                        <div v-if="!adminContributorApplicationsView.length" class="card empty-state">{{ adminContributorApplicationEmptyLabel }}</div>
+                    </div>
+                </section>
+
+                <section v-else class="card admin-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Pending Review Queue</p>
+                            <h3>Pending article reviews waiting for action</h3>
+                            <p class="muted">{{ pendingQueueSummaryLabel }}</p>
+                            <p class="muted">{{ pendingQueueSearchSummary }}</p>
+                        </div>
+                        <div class="request-actions">
+                            <input v-model="pendingQueueQuery" type="text" placeholder="Search queue by title">
+                            <button class="ghost-btn small" type="button" @click="clearPendingQueueSearch">Clear</button>
+                        </div>
+                    </div>
+                    <div class="approval-list">
+                        <article v-for="row in adminApprovalsView" :key="row.id" class="approval-card">
+                            <div class="approval-card__top">
+                                <h3>{{ row.title }}</h3>
+                                <span class="status-chip" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                            </div>
+                            <p class="muted">Author: {{ translateNickname(row.authorName) }}</p>
+                            <div class="entry-card__meta">
+                                <span>Submitted {{ formatShortDate(row.submittedAt) }}</span>
+                                <span v-if="row.reviewerName">Reviewed by {{ translateNickname(row.reviewerName) }}</span>
+                            </div>
+                            <div class="request-actions">
+                                <button class="primary-btn small" type="button" @click="quickApproveFromQueue(row.postId)">Quick approve</button>
+                                <button class="ghost-btn small" type="button" @click="openReviewFromQueue(row.postId)">Open article review</button>
+                            </div>
+                        </article>
+                        <div v-if="!adminApprovalsView.length" class="card empty-state">{{ pendingQueueEmptyLabel }}</div>
+                    </div>
+                </section>
+            </template>
+        </section>
+
+        <section v-show="currentView === 'auth'" class="view-stack">
+            <div class="section-head">
+                <div>
+                    <p class="eyebrow dark">Account Access</p>
+                    <h2>Register and Sign In Inside the Platform</h2>
+                </div>
+            </div>
+
+            <div class="auth-grid">
+                <form v-if="authMode === 'login'" class="card form-card auth-panel" @submit.prevent="login">
+                    <div>
+                        <p class="eyebrow dark">Sign In</p>
+                        <h3>Continue with your account</h3>
+                        <p class="muted auth-panel__intro">Use the same username and password you registered with.</p>
+                    </div>
+
+                    <div v-if="authBanner" class="message success auth-banner">{{ authBanner }}</div>
+
+                    <label class="auth-field--full">
+                        Username
+                        <input ref="loginUsernameInput" v-model="loginForm.username" type="text" autocomplete="username" placeholder="Enter your username">
+                    </label>
+                    <label class="auth-field--full">
+                        Password
+                        <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="Enter your password">
+                    </label>
+                    <button class="ghost-btn auth-submit" type="submit">Sign in</button>
+                    <p class="auth-panel__hint auth-link-row">
+                        If you do not have an account yet,
+                        <button class="auth-link-btn" type="button" @click="openRegisterMode">click here to register</button>
+                    </p>
+                </form>
+
+                <form v-else class="card form-card auth-panel" @submit.prevent="register">
+                    <div>
+                        <p class="eyebrow dark">Registration</p>
+                        <h3>Create an account</h3>
+                        <p class="muted auth-panel__intro">Use the updated registration fields here without leaving the main platform page.</p>
+                    </div>
+
+                    <div class="auth-form-grid">
+                        <label>
+                            Username
+                            <input ref="registerUsernameInput" v-model="registerForm.username" type="text" autocomplete="username" placeholder="4 to 50 characters">
+                        </label>
+                        <label>
+                            Display Name
+                            <input v-model="registerForm.nickname" type="text" autocomplete="nickname" placeholder="How your name will appear">
+                        </label>
+                        <label>
+                            Email
+                            <input v-model="registerForm.email" type="email" autocomplete="email" placeholder="Optional">
+                        </label>
+                        <label>
+                            Phone
+                            <input v-model="registerForm.phone" type="tel" autocomplete="tel" placeholder="Optional">
+                        </label>
+                        <label>
+                            Password
+                            <input v-model="registerForm.password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+                        </label>
+                        <label>
+                            Confirm Password
+                            <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter your password">
+                        </label>
+                    </div>
+
+                    <p class="auth-panel__hint auth-link-row">
+                        Already have an account?
+                        <button class="auth-link-btn" type="button" @click="openLoginMode">click here to sign in</button>
+                    </p>
+                    <button class="primary-btn auth-submit" type="submit">Create account</button>
+                </form>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
