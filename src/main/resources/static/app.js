@@ -43,6 +43,8 @@ const regionMap = {
 
 const backendMessageMap = {
     "用户名已存在": "This username is already in use.",
+    "邮箱已被注册": "This email address is already registered.",
+    "手机号已被注册": "This phone number is already registered.",
     "用户不存在": "The user could not be found.",
     "账号已被禁用": "This account has been disabled.",
     "用户名或密码错误": "The username or password is incorrect.",
@@ -56,8 +58,14 @@ const backendMessageMap = {
     "标题不能为空": "A title is required.",
     "正文不能为空": "Story text cannot be empty.",
     "用户名不能为空": "Username cannot be empty.",
+    "用户名长度需要在4到50之间": "Username must be between 4 and 50 characters.",
     "密码不能为空": "Password cannot be empty.",
+    "密码长度需要在6到30之间": "Password must be between 6 and 30 characters.",
     "昵称不能为空": "Display name cannot be empty.",
+    "昵称不能超过50个字符": "Display name cannot exceed 50 characters.",
+    "邮箱格式不正确": "Please enter a valid email address.",
+    "邮箱不能超过100个字符": "Email cannot exceed 100 characters.",
+    "手机号不能超过20个字符": "Phone number cannot exceed 20 characters.",
     "仅管理员可执行该操作": "Only administrators can perform this action.",
     "请先登录": "Please sign in again before continuing.",
     "当前文章状态不允许提交审核": "This article cannot be submitted for review right now.",
@@ -428,12 +436,17 @@ createApp({
             registerForm: {
                 username: "",
                 nickname: "",
-                password: ""
+                email: "",
+                phone: "",
+                password: "",
+                confirmPassword: ""
             },
             loginForm: {
                 username: "",
                 password: ""
             },
+            authMode: "login",
+            authBanner: "",
             postForm: createEmptyPostForm(),
             editingPostId: null,
             editingPostStatus: "",
@@ -794,6 +807,9 @@ createApp({
             }
 
             this.currentView = nextView;
+            if (nextView === "auth") {
+                this.authMode = "login";
+            }
             if (nextView === "profile" && this.currentUser) {
                 this.refreshWorkspaceData();
             }
@@ -1158,6 +1174,24 @@ createApp({
                 }
             });
         },
+        focusAuthInput(refName) {
+            this.$nextTick(() => {
+                const input = this.$refs[refName];
+                if (input?.focus) {
+                    input.focus();
+                }
+            });
+        },
+        openRegisterMode() {
+            this.authMode = "register";
+            this.errorMessage = "";
+            this.focusAuthInput("registerUsernameInput");
+        },
+        openLoginMode() {
+            this.authMode = "login";
+            this.errorMessage = "";
+            this.focusAuthInput("loginUsernameInput");
+        },
         clearHomeSearch() {
             this.homeSearchQuery = "";
             this.selectedCategoryFilter = "";
@@ -1330,19 +1364,50 @@ createApp({
             }
         },
         async register() {
+            const validationMessage = this.validateRegisterForm();
+            if (validationMessage) {
+                this.showError(validationMessage);
+                return;
+            }
+
+            const payload = {
+                username: this.registerForm.username.trim(),
+                nickname: this.registerForm.nickname.trim(),
+                email: this.normaliseOptionalField(this.registerForm.email),
+                phone: this.normaliseOptionalField(this.registerForm.phone),
+                password: this.registerForm.password
+            };
+
             await this.request("/api/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(this.registerForm)
-            }, "Registration complete. You are now signed in.", async (data) => {
-                this.currentUser = data;
-                this.storeUser(data);
-                this.registerForm = { username: "", nickname: "", password: "" };
-                await this.refreshWorkspaceData();
-                this.navigate("profile");
+                body: JSON.stringify(payload)
+            }, "Registration complete. Please sign in.", async () => {
+                this.authBanner = "Registration complete. Please sign in.";
+                this.loginForm = {
+                    username: payload.username,
+                    password: ""
+                };
+                this.registerForm = {
+                    username: "",
+                    nickname: "",
+                    email: "",
+                    phone: "",
+                    password: "",
+                    confirmPassword: ""
+                };
+                this.authMode = "login";
+                this.navigate("auth");
+                this.focusAuthInput("loginUsernameInput");
             });
         },
         async login() {
+            const validationMessage = this.validateLoginForm();
+            if (validationMessage) {
+                this.showError(validationMessage);
+                return;
+            }
+
             await this.request("/api/auth/login", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1350,6 +1415,7 @@ createApp({
             }, "Signed in successfully.", async (data) => {
                 this.currentUser = data;
                 this.storeUser(data);
+                this.authBanner = "";
                 this.loginForm = { username: "", password: "" };
                 await this.refreshWorkspaceData();
                 this.navigate("home");
@@ -1373,6 +1439,7 @@ createApp({
             this.adminContributorApplications = [];
             this.workspaceDrafts = [];
             this.workspacePending = [];
+            this.authBanner = "";
             this.resetPostEditor();
             localStorage.removeItem("heritage-current-user");
             this.navigate("home");
@@ -1867,6 +1934,56 @@ createApp({
                 return "";
             }
             return backendMessageMap[message] || message;
+        },
+        normaliseOptionalField(value) {
+            const trimmed = String(value || "").trim();
+            return trimmed ? trimmed : null;
+        },
+        validateRegisterForm() {
+            const username = this.registerForm.username.trim();
+            const nickname = this.registerForm.nickname.trim();
+            const email = String(this.registerForm.email || "").trim();
+            const phone = String(this.registerForm.phone || "").trim();
+            const password = this.registerForm.password || "";
+            const confirmPassword = this.registerForm.confirmPassword || "";
+
+            if (!username) {
+                return "Username cannot be empty.";
+            }
+            if (username.length < 4 || username.length > 50) {
+                return "Username must be between 4 and 50 characters.";
+            }
+            if (!nickname) {
+                return "Display name cannot be empty.";
+            }
+            if (nickname.length > 50) {
+                return "Display name cannot exceed 50 characters.";
+            }
+            if (!password) {
+                return "Password cannot be empty.";
+            }
+            if (password.length < 6) {
+                return "Password must be at least 6 characters.";
+            }
+            if (password !== confirmPassword) {
+                return "Passwords do not match.";
+            }
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                return "Please enter a valid email address.";
+            }
+            if (phone && phone.length > 20) {
+                return "Phone number cannot exceed 20 characters.";
+            }
+            return "";
+        },
+        validateLoginForm() {
+            const username = this.loginForm.username.trim();
+            const password = this.loginForm.password || "";
+
+            if (!username || !password) {
+                return "Please enter your username and password.";
+            }
+            return "";
         },
         storeUser(user) {
             localStorage.setItem("heritage-current-user", JSON.stringify(user));

@@ -32,13 +32,26 @@ public class AuthService {
             throw new BadRequestException("用户名已存在");
         }
 
+        String email = normalizeOptional(request.email());
+        String phone = normalizeOptional(request.phone());
+
+        if (email != null && userRepository.existsByEmail(email)) {
+            throw new BadRequestException("邮箱已被注册");
+        }
+
+        if (phone != null && userRepository.existsByPhone(phone)) {
+            throw new BadRequestException("手机号已被注册");
+        }
+
         User user = userRepository.save(new User(
                 request.username(),
                 passwordEncoder.encode(request.password()),
                 request.nickname(),
                 null,
                 UserRole.USER,
-                Boolean.TRUE
+                Boolean.TRUE,
+                email,
+                phone
         ));
 
         return toResponse(user);
@@ -62,6 +75,22 @@ public class AuthService {
 
     private AuthResponse toResponse(User user) {
         String token = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole().name());
-        return new AuthResponse(user.getId(), user.getUsername(), user.getNickname(), user.getRole(), token);
+        return new AuthResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getNickname(),
+                user.getRole(),
+                token,
+                user.getEmail(),
+                user.getPhone()
+        );
+    }
+
+    private String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

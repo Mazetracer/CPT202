@@ -927,39 +927,74 @@
             <div class="section-head">
                 <div>
                     <p class="eyebrow dark">Account Access</p>
-                    <h2>Register or Sign In</h2>
+                    <h2>Register and Sign In Inside the Platform</h2>
                 </div>
             </div>
 
             <div class="auth-grid">
-                <form class="card form-card" @submit.prevent="register">
-                    <h3>Create an account</h3>
-                    <label>
+                <form v-if="authMode === 'login'" class="card form-card auth-panel" @submit.prevent="login">
+                    <div>
+                        <p class="eyebrow dark">Sign In</p>
+                        <h3>Continue with your account</h3>
+                        <p class="muted auth-panel__intro">Use the same username and password you registered with.</p>
+                    </div>
+
+                    <div v-if="authBanner" class="message success auth-banner">{{ authBanner }}</div>
+
+                    <label class="auth-field--full">
                         Username
-                        <input v-model="registerForm.username" type="text" placeholder="At least 4 characters">
+                        <input ref="loginUsernameInput" v-model="loginForm.username" type="text" autocomplete="username" placeholder="Enter your username">
                     </label>
-                    <label>
-                        Display Name
-                        <input v-model="registerForm.nickname" type="text" placeholder="How your name will appear">
-                    </label>
-                    <label>
+                    <label class="auth-field--full">
                         Password
-                        <input v-model="registerForm.password" type="password" placeholder="At least 6 characters">
+                        <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="Enter your password">
                     </label>
-                    <button class="primary-btn" type="submit">Register</button>
+                    <button class="ghost-btn auth-submit" type="submit">Sign in</button>
+                    <p class="auth-panel__hint auth-link-row">
+                        If you do not have an account yet,
+                        <button class="auth-link-btn" type="button" @click="openRegisterMode">click here to register</button>
+                    </p>
                 </form>
 
-                <form class="card form-card" @submit.prevent="login">
-                    <h3>Sign in</h3>
-                    <label>
-                        Username
-                        <input v-model="loginForm.username" type="text" placeholder="Enter your username">
-                    </label>
-                    <label>
-                        Password
-                        <input v-model="loginForm.password" type="password" placeholder="Enter your password">
-                    </label>
-                    <button class="ghost-btn" type="submit">Sign in</button>
+                <form v-else class="card form-card auth-panel" @submit.prevent="register">
+                    <div>
+                        <p class="eyebrow dark">Registration</p>
+                        <h3>Create an account</h3>
+                        <p class="muted auth-panel__intro">Use the updated registration fields here without leaving the main platform page.</p>
+                    </div>
+
+                    <div class="auth-form-grid">
+                        <label>
+                            Username
+                            <input ref="registerUsernameInput" v-model="registerForm.username" type="text" autocomplete="username" placeholder="4 to 50 characters">
+                        </label>
+                        <label>
+                            Display Name
+                            <input v-model="registerForm.nickname" type="text" autocomplete="nickname" placeholder="How your name will appear">
+                        </label>
+                        <label>
+                            Email
+                            <input v-model="registerForm.email" type="email" autocomplete="email" placeholder="Optional">
+                        </label>
+                        <label>
+                            Phone
+                            <input v-model="registerForm.phone" type="tel" autocomplete="tel" placeholder="Optional">
+                        </label>
+                        <label>
+                            Password
+                            <input v-model="registerForm.password" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+                        </label>
+                        <label>
+                            Confirm Password
+                            <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter your password">
+                        </label>
+                    </div>
+
+                    <p class="auth-panel__hint auth-link-row">
+                        Already have an account?
+                        <button class="auth-link-btn" type="button" @click="openLoginMode">click here to sign in</button>
+                    </p>
+                    <button class="primary-btn auth-submit" type="submit">Create account</button>
                 </form>
             </div>
         </section>

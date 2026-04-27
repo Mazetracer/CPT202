@@ -662,7 +662,65 @@ label textarea {
 }
 
 .auth-grid {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 760px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.auth-panel {
+    display: grid;
+    align-content: start;
+    gap: 18px;
+}
+
+.auth-panel h3 {
+    margin: 6px 0 0;
+}
+
+.auth-panel__intro,
+.auth-panel__hint {
+    margin: 0;
+}
+
+.auth-form-grid {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.auth-field--full {
+    grid-column: 1 / -1;
+}
+
+.auth-banner {
+    margin: 0;
+}
+
+.auth-submit {
+    justify-content: center;
+}
+
+.auth-link-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.auth-link-btn {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--brand-deep);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.auth-link-btn:hover {
+    color: var(--brand);
 }
 
 .guide-list {
@@ -1206,6 +1264,10 @@ textarea {
 @media (max-width: 720px) {
     .container {
         width: min(100% - 24px, 100%);
+    }
+
+    .auth-form-grid {
+        grid-template-columns: 1fr;
     }
 
     .hero {

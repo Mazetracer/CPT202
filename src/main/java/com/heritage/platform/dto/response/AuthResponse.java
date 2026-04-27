@@ -7,6 +7,8 @@ public record AuthResponse(
         String username,
         String nickname,
         UserRole role,
-        String token
+        String token,
+        String email,
+        String phone
 ) {
 }

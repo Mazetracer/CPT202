@@ -37,16 +37,29 @@ public class User extends BaseTimeEntity {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Column(length = 100)
+    private String email;
+
+    @Column(length = 20)
+    private String phone;
+
     protected User() {
     }
 
     public User(String username, String passwordHash, String nickname, String avatarUrl, UserRole role, Boolean active) {
+        this(username, passwordHash, nickname, avatarUrl, role, active, null, null);
+    }
+
+    public User(String username, String passwordHash, String nickname, String avatarUrl, UserRole role, Boolean active,
+                String email, String phone) {
         this.username = username;
         this.passwordHash = passwordHash;
         this.nickname = nickname;
         this.avatarUrl = avatarUrl;
         this.role = role == null ? UserRole.USER : role;
         this.active = active == null ? Boolean.TRUE : active;
+        this.email = email;
+        this.phone = phone;
     }
 
     public Long getId() {
@@ -75,6 +88,14 @@ public class User extends BaseTimeEntity {
 
     public Boolean getActive() {
         return active;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPhone() {
+        return phone;
     }
 
     public void changeRole(UserRole role) {
