@@ -369,10 +369,12 @@ const normaliseSummary = (post, index = 0) => ({
     region: post.region || "",
     status: post.status || "PUBLISHED",
     authorName: post.authorName || post.authorNickname || "Anonymous Contributor",
+    categoryId: post.categoryId == null ? "" : String(post.categoryId),
     categoryName: post.categoryName || "传统技艺",
     likeCount: Number(post.likeCount || 0),
     favoriteCount: Number(post.favoriteCount || 0),
     commentCount: Number(post.commentCount || 0),
+    viewCount: Number(post.viewCount || 0),
     createdAt: post.createdAt || "2026-04-01T10:00:00"
 });
 
@@ -386,18 +388,18 @@ const normaliseDetail = (detail, index = 0) => ({
 const buildFallbackSummaries = () =>
     Object.values(fallbackPostDetails).map((detail, index) => normaliseSummary(detail, index));
 
-const mergeCategoriesWithFallback = (items = []) => {
+const normaliseCategories = (items = []) => {
     const seen = new Set();
-    const merged = [];
+    const normalised = [];
 
-    [...items, ...fallbackCategories].forEach((category, index) => {
+    items.forEach((category, index) => {
         const name = category?.name;
         if (!name || seen.has(name)) {
             return;
         }
 
         seen.add(name);
-        merged.push({
+        normalised.push({
             id: category.id ?? 500 + index,
             name,
             description: category.description || categoryDescriptionMap[name] || "",
@@ -405,7 +407,13 @@ const mergeCategoriesWithFallback = (items = []) => {
         });
     });
 
-    return merged;
+    return normalised;
+};
+
+const buildFallbackCategories = () => normaliseCategories(fallbackCategories);
+
+const mergeCategoriesWithFallback = (items = []) => {
+    return normaliseCategories([...items, ...fallbackCategories]);
 };
 
 const mergePostsWithFallback = (items = []) => {
@@ -445,6 +453,13 @@ createApp({
             selectedCategoryFilter: "",
             selectedCategoryFocus: "",
             homeSearchQuery: "",
+            appliedHomeSearchQuery: "",
+            appliedCategoryFilter: "",
+            homepageSearchLoading: false,
+            defaultHomepagePostsCache: [],
+            hasDefaultHomepagePostsCache: false,
+            homepageRequestSequence: 0,
+            latestHomepageRequestSequence: 0,
             profileSection: "published",
             adminSection: "articles",
             currentUser: readStoredUser(),
@@ -562,35 +577,87 @@ createApp({
             return labels[this.currentView] || "Homepage dashboard";
         },
         totalStories() {
-            return this.posts.length;
+            return this.defaultHomepagePostsCache.length;
         },
         totalComments() {
-            return this.posts.reduce((sum, post) => sum + Number(post.commentCount || 0), 0);
+            return this.defaultHomepagePostsCache.reduce((sum, post) => sum + Number(post.commentCount || 0), 0);
         },
         totalContributors() {
-            return new Set(this.posts.map((post) => post.authorName).filter(Boolean)).size;
+            return new Set(this.defaultHomepagePostsCache.map((post) => post.authorName).filter(Boolean)).size;
+        },
+        visibleCollectionCount() {
+            return this.categoryStats.filter((stat) => stat.count > 0).length;
+        },
+        activeHomepageKeyword() {
+            return this.appliedHomeSearchQuery.trim();
+        },
+        selectedCategoryFilterLabel() {
+            if (!this.appliedCategoryFilter) {
+                return "";
+            }
+
+            const category = this.categories.find((item) => String(item.id) === String(this.appliedCategoryFilter));
+            if (category?.name) {
+                return this.translateCategory(category.name);
+            }
+
+            const stat = this.categoryStats.find((item) => String(item.id) === String(this.appliedCategoryFilter));
+            if (stat?.name) {
+                return this.translateCategory(stat.name);
+            }
+
+            return "Selected collection";
+        },
+        hasActiveHomepageFilters() {
+            return Boolean(this.activeHomepageKeyword || this.appliedCategoryFilter);
+        },
+        homepageEmptyStateTitle() {
+            return this.hasActiveHomepageFilters
+                ? "No matching homepage articles"
+                : "No published articles are available yet";
+        },
+        homepageEmptyStateMessage() {
+            const keyword = this.activeHomepageKeyword;
+            const category = this.selectedCategoryFilterLabel || "the selected collection";
+
+            if (keyword && this.appliedCategoryFilter) {
+                return `No articles match "${keyword}" in ${category}. Try another keyword or clear one of the filters.`;
+            }
+            if (keyword) {
+                return `No articles match "${keyword}". Try a broader keyword or clear the search.`;
+            }
+            if (this.appliedCategoryFilter) {
+                return `No articles are available in ${category} right now. Try another collection or clear the filter.`;
+            }
+            return "The homepage feed is currently empty. Try refreshing again in a moment.";
+        },
+        hotRankingEmptyMessage() {
+            return "No homepage ranking is available yet.";
         },
         filteredPosts() {
-            const query = this.homeSearchQuery.trim().toLowerCase();
-            return this.posts.filter((post) => {
-                const matchesCategory = !this.selectedCategoryFilter || post.categoryName === this.selectedCategoryFilter;
-                const matchesSearch = !query || this.matchesSearch(post, query);
-                return matchesCategory && matchesSearch;
-            });
+            return this.posts;
         },
         featuredPost() {
             return this.filteredPosts[0] || this.hotPosts[0] || this.posts[0] || null;
         },
         hotPosts() {
-            return [...this.posts]
+            return [...this.defaultHomepagePostsCache]
                 .sort((left, right) => this.buildHeatScore(right) - this.buildHeatScore(left))
                 .slice(0, 5);
         },
         categoryStats() {
-            const categories = this.categories.length ? this.categories : mergeCategoriesWithFallback([]);
+            const categories = this.categories.length
+                ? this.categories
+                : normaliseCategories(this.defaultHomepagePostsCache.map((post) => ({
+                    id: post.categoryId || undefined,
+                    name: post.categoryName,
+                    description: categoryDescriptionMap[post.categoryName] || ""
+                })));
             const counts = categories.map((category) => {
-                const posts = this.posts.filter((post) => post.categoryName === category.name);
+                const categoryId = String(category.id);
+                const posts = this.defaultHomepagePostsCache.filter((post) => String(post.categoryId) === categoryId);
                 return {
+                    id: categoryId,
                     name: category.name,
                     description: category.description || categoryDescriptionMap[category.name] || "",
                     count: posts.length,
@@ -608,19 +675,46 @@ createApp({
                 .sort((left, right) => right.count - left.count);
         },
         focusedCategory() {
-            return this.selectedCategoryFocus || this.categoryStats[0]?.name || "";
+            const availableCategoryIds = this.categoryStats
+                .filter((stat) => stat.count > 0)
+                .map((stat) => String(stat.id));
+
+            if (this.appliedCategoryFilter) {
+                return availableCategoryIds.includes(this.appliedCategoryFilter)
+                    ? this.appliedCategoryFilter
+                    : "";
+            }
+
+            if (this.selectedCategoryFocus && availableCategoryIds.includes(this.selectedCategoryFocus)) {
+                return this.selectedCategoryFocus;
+            }
+
+            return availableCategoryIds[0] || "";
+        },
+        focusedCategoryName() {
+            if (!this.focusedCategory) {
+                return "";
+            }
+
+            const stat = this.categoryStats.find((item) => String(item.id) === String(this.focusedCategory));
+            if (stat) {
+                return stat.name;
+            }
+
+            const category = this.categories.find((item) => String(item.id) === String(this.focusedCategory));
+            return category?.name || "";
         },
         focusedCategoryPosts() {
             if (!this.focusedCategory) {
                 return [];
             }
-            return this.posts.filter((post) => post.categoryName === this.focusedCategory);
+            return this.filteredPosts.filter((post) => String(post.categoryId) === String(this.focusedCategory));
         },
         profilePublishedPosts() {
             return this.myPosts.filter((post) => post.status === "PUBLISHED");
         },
         likedPosts() {
-            return this.posts.filter((post) => this.likedPostIds.includes(Number(post.id)));
+            return this.defaultHomepagePostsCache.filter((post) => this.likedPostIds.includes(Number(post.id)));
         },
         profileSummary() {
             return {
@@ -831,8 +925,20 @@ createApp({
             return this.editingPostId ? "Update draft" : "Save draft";
         }
     },
+    watch: {
+        defaultHomepagePostsCache: {
+            handler() {
+                this.$nextTick(() => {
+                    if (this.currentView === "home") {
+                        this.renderCharts();
+                    }
+                });
+            },
+            deep: true
+        }
+    },
     async mounted() {
-        await Promise.all([this.fetchCategories(), this.fetchPosts()]);
+        await this.fetchHomepageData();
         if (this.currentUser) {
             this.syncProfileFormFromCurrentUser();
             this.syncLikedPostsFromStorage();
@@ -843,6 +949,7 @@ createApp({
     },
     beforeUnmount() {
         window.removeEventListener("hashchange", this.handleHash);
+        window.removeEventListener("resize", this.handleChartResize);
     },
     methods: {
         redirectGuestToRegister(message = "Sign in before viewing your profile.") {
@@ -879,7 +986,7 @@ createApp({
             }
             return Number(post.likeCount || 0) + (this.isPostLiked(post.id) ? 1 : 0);
         },
-        toggleLike(post) {
+        toggleLike(post, syncOnly = false) {
             if (!post?.id) {
                 return;
             }
@@ -892,7 +999,9 @@ createApp({
             const key = this.currentLikedPostsKey();
             const liked = this.isPostLiked(postId);
 
-            if (liked) {
+            if (syncOnly) {
+                this.likedPostIds = liked ? this.likedPostIds : [...this.likedPostIds, postId];
+            } else if (liked) {
                 this.likedPostIds = this.likedPostIds.filter((id) => id !== postId);
             } else {
                 this.likedPostIds = [...this.likedPostIds, postId];
@@ -900,7 +1009,9 @@ createApp({
 
             this.likedPostMap[key] = [...this.likedPostIds];
             this.persistLikedPosts();
-            this.showSuccess(liked ? "Article removed from your liked list." : "Article saved to your liked list.");
+            if (!syncOnly) {
+                this.showSuccess(liked ? "Article removed from your liked list." : "Article saved to your liked list.");
+            }
         },
         syncProfileFormFromCurrentUser() {
             this.profileForm.nickname = this.currentUser?.nickname || "";
@@ -1009,31 +1120,203 @@ createApp({
             }
             return headers;
         },
+        handleChartResize() {
+            ["chart-posts", "chart-comments", "chart-categories"].forEach((id) => {
+                const dom = document.getElementById(id);
+                if (dom && typeof echarts !== "undefined") {
+                    echarts.getInstanceByDom(dom)?.resize();
+                }
+            });
+        },
+        readHomepageSearchStateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                keyword: (params.get("keyword") || "").trim(),
+                categoryId: (params.get("categoryId") || "").trim()
+            };
+        },
+        syncHomepageSearchStateToUrl() {
+            const url = new URL(window.location.href);
+            const keyword = this.appliedHomeSearchQuery.trim();
+            const categoryId = this.appliedCategoryFilter ? String(this.appliedCategoryFilter) : "";
+
+            if (keyword) {
+                url.searchParams.set("keyword", keyword);
+            } else {
+                url.searchParams.delete("keyword");
+            }
+
+            if (categoryId) {
+                url.searchParams.set("categoryId", categoryId);
+            } else {
+                url.searchParams.delete("categoryId");
+            }
+
+            const nextSearch = url.searchParams.toString();
+            const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`;
+            window.history.replaceState({}, "", nextUrl);
+        },
+        cacheDefaultHomepagePosts(posts) {
+            this.defaultHomepagePostsCache = clone(posts);
+            this.hasDefaultHomepagePostsCache = true;
+        },
+        restoreDefaultHomepagePostsFromCache() {
+            if (!this.hasDefaultHomepagePostsCache) {
+                return false;
+            }
+            this.posts = clone(this.defaultHomepagePostsCache);
+            return true;
+        },
+        applyHomepageSearchState(keyword, categoryId) {
+            this.appliedHomeSearchQuery = (keyword || "").trim();
+            this.appliedCategoryFilter = categoryId ? String(categoryId) : "";
+        },
+        normaliseHomepagePosts(items = []) {
+            return items.map((post, index) => {
+                const summary = normaliseSummary(post, index);
+                return {
+                    ...summary,
+                    categoryId: summary.categoryId || this.resolveCategoryId(summary.categoryName)
+                };
+            });
+        },
+        buildHomepagePostQuery(keyword = this.appliedHomeSearchQuery, categoryId = this.appliedCategoryFilter) {
+            const params = new URLSearchParams();
+            const trimmedKeyword = (keyword || "").trim();
+            const resolvedCategoryId = categoryId ? String(categoryId) : "";
+
+            if (trimmedKeyword) {
+                params.set("keyword", trimmedKeyword);
+            }
+            if (resolvedCategoryId) {
+                params.set("categoryId", resolvedCategoryId);
+            }
+
+            return params.toString();
+        },
+        async fetchHomepageData() {
+            this.errorMessage = "";
+            await this.fetchCategories();
+            const initialState = this.readHomepageSearchStateFromUrl();
+            this.homeSearchQuery = initialState.keyword;
+            this.selectedCategoryFilter = initialState.categoryId;
+            if (initialState.keyword || initialState.categoryId) {
+                await this.ensureDefaultHomepagePostsCache();
+            }
+            this.applyHomepageSearchState(initialState.keyword, initialState.categoryId);
+            await this.fetchPosts({ allowFallback: true });
+            window.addEventListener("resize", this.handleChartResize);
+        },
         async fetchCategories() {
             try {
                 const response = await fetch("/api/categories");
                 const payload = await response.json();
-                this.categories = mergeCategoriesWithFallback(payload.data || []);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load homepage categories.");
+                }
+                this.categories = normaliseCategories(payload.data);
             } catch (error) {
-                this.categories = mergeCategoriesWithFallback([]);
+                this.categories = buildFallbackCategories();
             } finally {
                 if (!this.selectedCategoryFocus && this.categories.length) {
-                    this.selectedCategoryFocus = this.categories[0].name;
+                    this.selectedCategoryFocus = String(this.categories[0].id);
                 }
             }
         },
-        async fetchPosts() {
-            this.loading = true;
+        async fetchPosts(options = {}) {
+            const {
+                allowFallback = false,
+                showGlobalLoading = true,
+                useHomepageSearchLoading = false
+            } = options;
+            const query = this.buildHomepagePostQuery();
+            const requestSequence = ++this.homepageRequestSequence;
+            this.latestHomepageRequestSequence = requestSequence;
+            const isDefaultRequest = !this.appliedHomeSearchQuery.trim() && !this.appliedCategoryFilter;
+
+            if (showGlobalLoading) {
+                this.loading = true;
+            }
+            if (useHomepageSearchLoading) {
+                this.homepageSearchLoading = true;
+            }
+            this.errorMessage = "";
+            try {
+                const response = await fetch(`/api/posts${query ? `?${query}` : ""}`);
+                const payload = await response.json();
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load the homepage article feed.");
+                }
+                if (requestSequence !== this.latestHomepageRequestSequence) {
+                    return;
+                }
+                const normalisedPosts = this.normaliseHomepagePosts(payload.data);
+                this.posts = normalisedPosts;
+                if (isDefaultRequest) {
+                    this.cacheDefaultHomepagePosts(normalisedPosts);
+                }
+            } catch (error) {
+                if (requestSequence !== this.latestHomepageRequestSequence) {
+                    return;
+                }
+                if (allowFallback) {
+                    const fallbackPosts = this.normaliseHomepagePosts(buildFallbackSummaries());
+                    this.posts = fallbackPosts;
+                    if (isDefaultRequest) {
+                        this.cacheDefaultHomepagePosts(fallbackPosts);
+                    }
+                    this.showError("The live homepage feed is unavailable, so the front-end demo content is being shown instead.");
+                } else {
+                    this.posts = [];
+                    this.showError(error.message || "Unable to load the homepage article feed.");
+                }
+            } finally {
+                if (requestSequence === this.latestHomepageRequestSequence) {
+                    if (showGlobalLoading) {
+                        this.loading = false;
+                    }
+                    if (useHomepageSearchLoading) {
+                        this.homepageSearchLoading = false;
+                    }
+                }
+            }
+        },
+        async ensureDefaultHomepagePostsCache() {
+            if (this.hasDefaultHomepagePostsCache) {
+                return;
+            }
+
             try {
                 const response = await fetch("/api/posts");
                 const payload = await response.json();
-                this.posts = mergePostsWithFallback(payload.data || []);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load the default homepage article feed.");
+                }
+                this.cacheDefaultHomepagePosts(this.normaliseHomepagePosts(payload.data));
             } catch (error) {
-                this.posts = mergePostsWithFallback([]);
-                this.showError("The live feed is unavailable, so the front-end demo content is being shown instead.");
-            } finally {
-                this.loading = false;
+                this.cacheDefaultHomepagePosts(this.normaliseHomepagePosts(buildFallbackSummaries()));
             }
+        },
+        async triggerHomepageSearch() {
+            const nextKeyword = this.homeSearchQuery.trim();
+            const nextCategoryId = this.selectedCategoryFilter ? String(this.selectedCategoryFilter) : "";
+
+            this.applyHomepageSearchState(nextKeyword, nextCategoryId);
+            this.syncHomepageSearchStateToUrl();
+
+            if (!nextKeyword && !nextCategoryId && this.restoreDefaultHomepagePostsFromCache()) {
+                this.errorMessage = "";
+                return;
+            }
+
+            await this.fetchPosts({
+                allowFallback: !nextKeyword && !nextCategoryId,
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
+        },
+        async handleHomepageSearchEnter() {
+            await this.triggerHomepageSearch();
         },
         async fetchMyProfile() {
             if (!this.currentUser) {
@@ -1266,7 +1549,18 @@ createApp({
             }
         },
         async openPost(postId) {
+            const postInCache = this.defaultHomepagePostsCache.find((post) => post.id === postId);
+            if (postInCache) {
+                postInCache.viewCount = Number(postInCache.viewCount || 0) + 1;
+            }
+
+            const postInList = this.posts.find((post) => post.id === postId);
+            if (postInList) {
+                postInList.viewCount = Number(postInList.viewCount || 0) + 1;
+            }
+
             if (fallbackPostDetails[postId]) {
+                fallbackPostDetails[postId].viewCount = Number(fallbackPostDetails[postId].viewCount || 0) + 1;
                 this.selectedPost = normaliseDetail(clone(fallbackPostDetails[postId]));
                 this.selectedPostId = postId;
                 this.currentView = "detail";
@@ -1311,14 +1605,45 @@ createApp({
                 this.loading = false;
             }
         },
-        inspectCategory(categoryName) {
-            this.selectedCategoryFocus = categoryName;
-            this.selectedCategoryFilter = categoryName;
+        async likePost() {
+            if (!this.selectedPostId) {
+                this.showError("Please open an article before liking.");
+                return;
+            }
+            if (!this.currentUser) {
+                this.redirectGuestToRegister("Sign in before liking articles.");
+                return;
+            }
+
+            const data = await this.request(`/api/posts/${this.selectedPostId}/like`, {
+                method: "POST"
+            }, "Article liked successfully.", null, true);
+
+            if (data) {
+                this.selectedPost = normaliseDetail(data);
+                const postInCache = this.defaultHomepagePostsCache.find((post) => post.id === this.selectedPostId);
+                if (postInCache) {
+                    postInCache.likeCount = data.likeCount;
+                }
+
+                const postInList = this.posts.find((post) => post.id === this.selectedPostId);
+                if (postInList) {
+                    postInList.likeCount = data.likeCount;
+                }
+
+                this.toggleLike(this.selectedPost, true);
+            }
+        },
+        inspectCategory(categoryId) {
+            const resolvedCategoryId = String(categoryId);
+            this.selectedCategoryFocus = resolvedCategoryId;
             this.navigate("home");
             this.scrollToCollections();
         },
-        applyCategoryToSearch(categoryName) {
-            this.selectedCategoryFilter = categoryName;
+        applyCategoryToSearch(categoryId) {
+            const resolvedCategoryId = String(categoryId);
+            this.selectedCategoryFocus = resolvedCategoryId;
+            this.selectedCategoryFilter = resolvedCategoryId;
             this.navigate("home");
         },
         focusCollections(shouldNavigate = true) {
@@ -1356,6 +1681,17 @@ createApp({
         clearHomeSearch() {
             this.homeSearchQuery = "";
             this.selectedCategoryFilter = "";
+            this.applyHomepageSearchState("", "");
+            this.syncHomepageSearchStateToUrl();
+            this.errorMessage = "";
+            if (this.restoreDefaultHomepagePostsFromCache()) {
+                return;
+            }
+            return this.fetchPosts({
+                allowFallback: true,
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
         },
         async selectProfileSection(section) {
             if (!this.canAccessContributorWorkspace && ["published", "pending", "drafts"].includes(section)) {
@@ -2016,7 +2352,9 @@ createApp({
                 .includes(query);
         },
         buildHeatScore(post) {
-            return Number(post.likeCount || 0) * 3 + Number(post.favoriteCount || 0) * 2 + Number(post.commentCount || 0) * 4;
+            const views = Number(post.viewCount || 0);
+            const comments = Number(post.commentCount || 0);
+            return Math.round((views * 0.8) + (comments * 0.2));
         },
         statusLabel(status) {
             const mapping = {
@@ -2237,6 +2575,82 @@ createApp({
         },
         storeUser(user) {
             localStorage.setItem("heritage-current-user", JSON.stringify(user));
+        },
+        renderCharts() {
+            this.renderPostLineChart();
+            this.renderCommentLineChart();
+            this.renderCategoryPieChart();
+        },
+        renderPostLineChart() {
+            const chartDom = document.getElementById("chart-posts");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const dateCounts = {};
+            this.defaultHomepagePostsCache.forEach((post) => {
+                const date = String(post.createdAt || "").substring(0, 10);
+                if (date) {
+                    dateCounts[date] = (dateCounts[date] || 0) + 1;
+                }
+            });
+            const sortedDates = Object.keys(dateCounts).sort();
+            const data = sortedDates.map((date) => dateCounts[date]);
+
+            myChart.setOption({
+                title: { text: "Daily Published Stories", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" } },
+                tooltip: { trigger: "axis" },
+                xAxis: { type: "category", data: sortedDates },
+                yAxis: { type: "value", minInterval: 1 },
+                series: [{ data, type: "line", smooth: true, itemStyle: { color: "#8f4b2f" } }]
+            });
+        },
+        renderCommentLineChart() {
+            const chartDom = document.getElementById("chart-comments");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const dateCounts = {};
+            this.defaultHomepagePostsCache.forEach((post) => {
+                const date = String(post.createdAt || "").substring(0, 10);
+                if (date) {
+                    dateCounts[date] = (dateCounts[date] || 0) + Number(post.commentCount || 0);
+                }
+            });
+            const sortedDates = Object.keys(dateCounts).sort();
+            const data = sortedDates.map((date) => dateCounts[date]);
+
+            myChart.setOption({
+                title: { text: "Discussion Activity Trends", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" } },
+                tooltip: { trigger: "axis" },
+                xAxis: { type: "category", data: sortedDates },
+                yAxis: { type: "value", minInterval: 1 },
+                series: [{ data, type: "line", smooth: true, itemStyle: { color: "#6d7561" } }]
+            });
+        },
+        renderCategoryPieChart() {
+            const chartDom = document.getElementById("chart-categories");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const pieData = this.categoryStats.filter((stat) => stat.count > 0).map((stat) => ({
+                name: this.translateCategory(stat.name),
+                value: stat.count
+            }));
+
+            myChart.setOption({
+                color: ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"],
+                title: { text: "Collections Distribution", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" }, left: "center" },
+                tooltip: { trigger: "item" },
+                series: [{
+                    type: "pie",
+                    radius: ["40%", "70%"],
+                    itemStyle: { borderRadius: 5, borderColor: "#fff", borderWidth: 2 },
+                    data: pieData
+                }]
+            });
         }
     }
 }).mount("#app");

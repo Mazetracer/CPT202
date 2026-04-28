@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +22,30 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusOrderByCreatedAtDesc(PostStatus status);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    @Query("""
+            select p
+            from Post p
+            join p.author a
+            join p.category c
+            where p.status = :status
+              and (:categoryId is null or c.id = :categoryId)
+              and (
+                    :keyword is null
+                    or lower(p.title) like lower(concat('%', :keyword, '%'))
+                    or lower(coalesce(p.heritageName, '')) like lower(concat('%', :keyword, '%'))
+                    or lower(coalesce(p.region, '')) like lower(concat('%', :keyword, '%'))
+                    or lower(a.nickname) like lower(concat('%', :keyword, '%'))
+                    or lower(c.name) like lower(concat('%', :keyword, '%'))
+              )
+            order by p.createdAt desc
+            """)
+    List<Post> searchPublishedPosts(
+            @Param("status") PostStatus status,
+            @Param("keyword") String keyword,
+            @Param("categoryId") Long categoryId
+    );
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusOrderByUpdatedAtDesc(PostStatus status);

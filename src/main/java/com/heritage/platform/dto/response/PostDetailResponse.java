@@ -14,10 +14,12 @@ public record PostDetailResponse(
         String region,
         PostStatus status,
         String authorName,
+        Long categoryId,
         String categoryName,
         Integer likeCount,
         Integer favoriteCount,
         Integer commentCount,
+        Integer viewCount,
         List<String> imageUrls,
         List<CommentResponse> comments,
         LocalDateTime createdAt

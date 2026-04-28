@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS posts (
     like_count INT NOT NULL DEFAULT 0,
     favorite_count INT NOT NULL DEFAULT 0,
     comment_count INT NOT NULL DEFAULT 0,
+    view_count INT NOT NULL DEFAULT 0,
     author_id BIGINT NOT NULL,
     category_id BIGINT NOT NULL,
     reviewed_by BIGINT,
