@@ -67,7 +67,7 @@ public class PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
 
         if (post.getStatus() != PostStatus.DRAFT && post.getStatus() != PostStatus.REJECTED) {
-            throw new BadRequestException("仅草稿或已驳回文章可编辑");
+            throw new BadRequestException("Only draft or rejected articles can be edited.");
         }
 
         post.update(
@@ -89,7 +89,7 @@ public class PostService {
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
 
         if (post.getStatus() != PostStatus.DRAFT && post.getStatus() != PostStatus.REJECTED) {
-            throw new BadRequestException("当前文章状态不允许提交审核");
+            throw new BadRequestException("This article cannot be submitted for review right now.");
         }
 
         post.submitForReview();
@@ -116,16 +116,36 @@ public class PostService {
 
     @Transactional(readOnly = true)
     public List<PostSummaryResponse> listAll() {
-        return postRepository.findAllByStatusOrderByCreatedAtDesc(PostStatus.PUBLISHED)
+        return listAll(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PostSummaryResponse> listAll(String keyword, Long categoryId) {
+        String trimmedKeyword = keyword == null ? null : keyword.trim();
+        if (trimmedKeyword != null && trimmedKeyword.isEmpty()) {
+            trimmedKeyword = null;
+        }
+
+        return postRepository.searchPublishedPosts(PostStatus.PUBLISHED, trimmedKeyword, categoryId)
                 .stream()
                 .map(this::toSummary)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PostDetailResponse getDetail(Long postId) {
         Post post = postRepository.findByIdAndStatus(postId, PostStatus.PUBLISHED)
                 .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+        post.increaseViewCount();
+        return toDetail(post);
+    }
+
+    @Transactional
+    public PostDetailResponse likePost(Long postId) {
+        authContextService.requireActiveUser();
+        Post post = postRepository.findByIdAndStatus(postId, PostStatus.PUBLISHED)
+                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+        post.increaseLikeCount();
         return toDetail(post);
     }
 
@@ -180,10 +200,12 @@ public class PostService {
                 post.getRegion(),
                 post.getStatus(),
                 post.getAuthor().getNickname(),
+                post.getCategory().getId(),
                 post.getCategory().getName(),
                 post.getLikeCount(),
                 post.getFavoriteCount(),
                 post.getCommentCount(),
+                post.getViewCount(),
                 imageUrls,
                 comments,
                 post.getCreatedAt()
@@ -199,10 +221,12 @@ public class PostService {
                 post.getRegion(),
                 post.getStatus(),
                 post.getAuthor().getNickname(),
+                post.getCategory().getId(),
                 post.getCategory().getName(),
                 post.getLikeCount(),
                 post.getFavoriteCount(),
                 post.getCommentCount(),
+                post.getViewCount(),
                 post.getCreatedAt()
         );
     }

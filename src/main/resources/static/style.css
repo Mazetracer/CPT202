@@ -548,6 +548,11 @@ label textarea {
     text-transform: uppercase;
 }
 
+.story-chip--filter {
+    background: rgba(143, 75, 47, 0.1);
+    border-color: rgba(143, 75, 47, 0.18);
+}
+
 .muted,
 .meta-row {
     color: var(--muted);
@@ -810,6 +815,16 @@ textarea {
     color: var(--muted);
 }
 
+.home-empty-state strong {
+    display: block;
+    font-size: 24px;
+    line-height: 1.2;
+}
+
+.home-empty-state p {
+    margin: 10px 0 0;
+}
+
 .section-head__actions {
     display: flex;
     align-items: center;
@@ -892,6 +907,50 @@ textarea {
     grid-template-columns: minmax(0, 1.25fr) minmax(220px, 0.75fr);
     gap: 14px;
     margin-top: 18px;
+}
+
+.search-panel__search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+}
+
+.search-panel__search-row input {
+    min-width: 0;
+}
+
+.search-panel__submit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.search-panel__submit:disabled {
+    opacity: 0.72;
+    cursor: wait;
+    transform: none;
+}
+
+.search-panel__submit:disabled:hover {
+    transform: none;
+}
+
+.search-panel__submit svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+.search-panel__active-filters {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.search-panel__active-filters .toolbar__label {
+    margin: 0;
 }
 
 .ranking-list {
@@ -1413,6 +1472,14 @@ textarea {
     .search-panel__controls,
     .profile-hero__stats {
         grid-template-columns: 1fr;
+    }
+
+    .search-panel__search-row {
+        grid-template-columns: 1fr;
+    }
+
+    .search-panel__submit {
+        width: 100%;
     }
 
     .profile-hero__main,

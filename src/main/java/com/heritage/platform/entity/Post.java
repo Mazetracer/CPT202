@@ -58,6 +58,9 @@ public class Post extends BaseTimeEntity {
     @Column(nullable = false)
     private Integer commentCount = 0;
 
+    @Column(nullable = false)
+    private Integer viewCount = 0;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "author_id", nullable = false)
     private User author;
@@ -96,6 +99,7 @@ public class Post extends BaseTimeEntity {
         this.likeCount = 0;
         this.favoriteCount = 0;
         this.commentCount = 0;
+        this.viewCount = 0;
         this.images = new ArrayList<>();
     }
 
@@ -163,6 +167,14 @@ public class Post extends BaseTimeEntity {
         commentCount += 1;
     }
 
+    public void increaseViewCount() {
+        viewCount += 1;
+    }
+
+    public void increaseLikeCount() {
+        likeCount += 1;
+    }
+
     public Long getId() {
         return id;
     }
@@ -201,6 +213,10 @@ public class Post extends BaseTimeEntity {
 
     public Integer getCommentCount() {
         return commentCount;
+    }
+
+    public Integer getViewCount() {
+        return viewCount;
     }
 
     public User getAuthor() {

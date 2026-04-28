@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,8 +31,11 @@ public class PostController {
     }
 
     @GetMapping
-    public ApiResponse<List<PostSummaryResponse>> listAll() {
-        return ApiResponse.success(postService.listAll());
+    public ApiResponse<List<PostSummaryResponse>> listAll(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long categoryId
+    ) {
+        return ApiResponse.success(postService.listAll(keyword, categoryId));
     }
 
     @GetMapping("/{postId}")
@@ -55,6 +59,11 @@ public class PostController {
     @PostMapping("/{postId}/submit-review")
     public ApiResponse<PostDetailResponse> submitForReview(@PathVariable Long postId) {
         return ApiResponse.success("文章已提交审核", postService.submitForReview(postId));
+    }
+
+    @PostMapping("/{postId}/like")
+    public ApiResponse<PostDetailResponse> likePost(@PathVariable Long postId) {
+        return ApiResponse.success("鐐硅禐鎴愬姛", postService.likePost(postId));
     }
 
     @PostMapping("/{postId}/comments")
