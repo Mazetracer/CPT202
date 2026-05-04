@@ -41,6 +41,9 @@ const regionMap = {
     "天津": "Tianjin"
 };
 
+const postTitleByteLimit = 150;
+const postContentByteLimit = 60000;
+
 const backendMessageMap = {};
 
 const categoryDescriptionMap = {
@@ -50,38 +53,16 @@ const categoryDescriptionMap = {
     "民俗节庆": "Seasonal ritual, festivals, community gatherings, and oral custom."
 };
 
-const defaultCoverThemeMap = {
-    "Traditional Craftsmanship": {
-        primary: "#8f4b2f",
-        secondary: "#c9a36d",
-        accent: "#f3e2c6",
-        outline: "rgba(111, 49, 27, 0.18)"
-    },
-    "Traditional Opera": {
-        primary: "#6f311b",
-        secondary: "#b86f4d",
-        accent: "#f4ddd0",
-        outline: "rgba(111, 49, 27, 0.2)"
-    },
-    "Historic Architecture": {
-        primary: "#6d7561",
-        secondary: "#b29a76",
-        accent: "#ece3d4",
-        outline: "rgba(82, 88, 72, 0.18)"
-    },
-    "Folk Rituals & Festivals": {
-        primary: "#a15733",
-        secondary: "#d6a45d",
-        accent: "#f6e6bf",
-        outline: "rgba(143, 75, 47, 0.18)"
-    },
-    "__default": {
-        primary: "#7f5d42",
-        secondary: "#ccb08a",
-        accent: "#f2e6d3",
-        outline: "rgba(111, 49, 27, 0.16)"
-    }
+const defaultCoverFallbackImage = "/images/default-covers/default-heritage.svg";
+
+const defaultCoverImageMap = {
+    "traditional craftsmanship": "/images/default-covers/default-craftsmanship.svg",
+    "traditional opera": "/images/default-covers/default-opera.svg",
+    "historic architecture": "/images/default-covers/default-architecture.svg",
+    "folk rituals & festivals": "/images/default-covers/default-folk-rituals.svg"
 };
+
+const categoryPieColors = ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"];
 
 const fallbackCategories = [
     { id: 1, name: "传统技艺", description: "Material culture, workshop practice, motifs, and making processes." },
@@ -344,6 +325,91 @@ const readStoredLikedPostMap = () => {
     }
 };
 
+const resolveImageCandidate = (candidate) => {
+    if (!candidate) {
+        return "";
+    }
+    if (typeof candidate === "string") {
+        return candidate.trim();
+    }
+    if (typeof candidate === "object") {
+        return String(
+            candidate.coverImageUrl
+            || candidate.imageUrl
+            || candidate.url
+            || candidate.src
+            || candidate.path
+            || ""
+        ).trim();
+    }
+    return "";
+};
+
+const getPostCategoryName = (post) => {
+    const category = post?.category ?? post?.categoryName ?? post?.collectionName ?? "";
+    if (typeof category === "string") {
+        return category;
+    }
+    if (category && typeof category === "object") {
+        return category.name || category.categoryName || category.title || category.label || "";
+    }
+    return "";
+};
+
+const normaliseCategoryKey = (categoryName) => {
+    const rawName = String(categoryName || "").trim();
+    const displayName = categoryMap[rawName] || rawName;
+    return displayName
+        .toLowerCase()
+        .replace(/\s*&\s*/g, " & ")
+        .replace(/\s+/g, " ")
+        .trim();
+};
+
+const resolveDefaultCoverImage = (categoryName) =>
+    defaultCoverImageMap[normaliseCategoryKey(categoryName)] || defaultCoverFallbackImage;
+
+const resolvePostOwnCoverImage = (post) => {
+    const directCover = [
+        post?.coverImageUrl,
+        post?.coverImage,
+        post?.imageUrl,
+        post?.mainImageUrl,
+        post?.thumbnailUrl
+    ].map(resolveImageCandidate).find(Boolean);
+
+    if (directCover) {
+        return directCover;
+    }
+
+    const imageCollections = [post?.imageUrls, post?.images, post?.media, post?.galleryImages];
+    for (const collection of imageCollections) {
+        if (!Array.isArray(collection)) {
+            continue;
+        }
+        const firstImage = collection.map(resolveImageCandidate).find(Boolean);
+        if (firstImage) {
+            return firstImage;
+        }
+    }
+
+    return "";
+};
+
+const resolvePostCoverImage = (post) =>
+    resolvePostOwnCoverImage(post) || resolveDefaultCoverImage(getPostCategoryName(post));
+
+const normaliseImageList = (post) => {
+    const imageCollections = [post?.imageUrls, post?.images, post?.media, post?.galleryImages];
+    for (const collection of imageCollections) {
+        if (!Array.isArray(collection)) {
+            continue;
+        }
+        return collection.map(resolveImageCandidate).filter(Boolean);
+    }
+    return [];
+};
+
 const normaliseSummary = (post, index = 0) => ({
     id: post.id ?? 1000 + index,
     title: post.title || "Untitled heritage article",
@@ -358,6 +424,7 @@ const normaliseSummary = (post, index = 0) => ({
     favoriteCount: Number(post.favoriteCount || 0),
     commentCount: Number(post.commentCount || 0),
     viewCount: Number(post.viewCount || 0),
+    imageUrls: normaliseImageList(post),
     createdAt: post.createdAt || "2026-04-01T10:00:00"
 });
 
@@ -545,6 +612,18 @@ createApp({
         profileBioByteCount() {
             return this.countBytes(this.profileForm.bio);
         },
+        postTitleByteLimit() {
+            return postTitleByteLimit;
+        },
+        postContentByteLimit() {
+            return postContentByteLimit;
+        },
+        postTitleByteCount() {
+            return this.countBytes(this.postForm.title);
+        },
+        postContentByteCount() {
+            return this.countBytes(this.postForm.content);
+        },
         showPermissionRequestModule() {
             return this.currentUser?.role === "USER";
         },
@@ -701,6 +780,20 @@ createApp({
                     percentage: maxCount === 0 ? 0 : Math.max(14, Math.round((item.count / maxCount) * 100))
                 }))
                 .sort((left, right) => right.count - left.count);
+        },
+        categoryPieLegendItems() {
+            const items = this.categoryStats.filter((stat) => stat.count > 0);
+            const total = items.reduce((sum, stat) => sum + Number(stat.count || 0), 0);
+            return items.map((stat, index) => {
+                const count = Number(stat.count || 0);
+                return {
+                    id: stat.id,
+                    name: this.translateCategory(stat.name),
+                    count,
+                    percent: total ? Math.round((count / total) * 100) : 0,
+                    color: categoryPieColors[index % categoryPieColors.length]
+                };
+            });
         },
         focusedCategory() {
             const availableCategoryIds = this.categoryStats
@@ -1098,6 +1191,25 @@ createApp({
             }
             return Number(post.likeCount || 0);
         },
+        applyPostLikeState(postId, likeCount, likedByCurrentUser) {
+            const matchesPost = (post) => String(post?.id) === String(postId);
+            const applyState = (post) => {
+                if (!post) {
+                    return;
+                }
+                post.likeCount = Number(likeCount || 0);
+                post.likedByCurrentUser = Boolean(likedByCurrentUser);
+            };
+
+            if (matchesPost(this.selectedPost)) {
+                applyState(this.selectedPost);
+            }
+            applyState(this.defaultHomepagePostsCache.find(matchesPost));
+            applyState(this.posts.find(matchesPost));
+            if (fallbackPostDetails[postId]) {
+                applyState(fallbackPostDetails[postId]);
+            }
+        },
         setStoredLike(postId, liked) {
             const key = this.currentLikedPostsKey();
             if (!key) {
@@ -1114,7 +1226,7 @@ createApp({
             this.likedPostMap[key] = [...this.likedPostIds];
             this.persistLikedPosts();
         },
-        toggleLike(post, syncOnly = false) {
+        async toggleLike(post, syncOnly = false) {
             if (!post?.id) {
                 return;
             }
@@ -1124,21 +1236,39 @@ createApp({
             }
 
             const postId = Number(post.id);
-            const key = this.currentLikedPostsKey();
-            const liked = this.isPostLiked(postId);
-
             if (syncOnly) {
-                this.likedPostIds = liked ? this.likedPostIds : [...this.likedPostIds, postId];
-            } else if (liked) {
-                this.likedPostIds = this.likedPostIds.filter((id) => id !== postId);
-            } else {
-                this.likedPostIds = [...this.likedPostIds, postId];
+                this.setStoredLike(postId, true);
+                return;
             }
 
-            this.likedPostMap[key] = [...this.likedPostIds];
-            this.persistLikedPosts();
-            if (!syncOnly) {
-                this.showSuccess(liked ? "Article removed from your liked list." : "Article saved to your liked list.");
+            if (fallbackPostDetails[postId]) {
+                const liked = !this.isPostLiked(postId);
+                const likeCount = Math.max(0, Number(post.likeCount || 0) + (liked ? 1 : -1));
+                this.applyPostLikeState(postId, likeCount, liked);
+                this.setStoredLike(postId, liked);
+                this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
+                return;
+            }
+
+            if (this.likeRequestPending) {
+                return;
+            }
+            this.likeRequestPending = true;
+            try {
+                const data = await this.request(`/api/posts/${postId}/like`, {
+                    method: "POST"
+                }, "", null, true);
+                if (data) {
+                    const liked = Boolean(data.likedByCurrentUser);
+                    if (String(this.selectedPost?.id) === String(postId)) {
+                        this.selectedPost = normaliseDetail(data);
+                    }
+                    this.applyPostLikeState(postId, data.likeCount, liked);
+                    this.setStoredLike(postId, liked);
+                    this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
+                }
+            } finally {
+                this.likeRequestPending = false;
             }
         },
         syncProfileFormFromCurrentUser() {
@@ -1348,7 +1478,7 @@ createApp({
                 return [];
             }
             return this.buildPreviewImageList([
-                this.adminPreviewPost.coverImageUrl,
+                this.getPostOwnCoverImage(this.adminPreviewPost),
                 ...(Array.isArray(this.adminPreviewPost.imageUrls) ? this.adminPreviewPost.imageUrls : [])
             ]);
         },
@@ -1920,7 +2050,7 @@ createApp({
                         ...summary,
                         likedByCurrentUser: this.isPostLiked(postId),
                         content: "This article is available in the front-end preview, but the live detail endpoint is not currently returning a full payload.",
-                        imageUrls: summary.coverImageUrl ? [summary.coverImageUrl] : [],
+                        imageUrls: summary.imageUrls?.length ? summary.imageUrls : (summary.coverImageUrl ? [summary.coverImageUrl] : []),
                         comments: []
                     });
                     this.selectedPostId = postId;
@@ -1949,40 +2079,34 @@ createApp({
                 return;
             }
 
+            const postId = this.selectedPostId;
+            const previousLiked = this.selectedPostLiked;
+            const previousLikeCount = Number(this.selectedPost?.likeCount || 0);
+            const liked = !previousLiked;
+            const optimisticLikeCount = Math.max(0, previousLikeCount + (liked ? 1 : -1));
+
+            this.applyPostLikeState(postId, optimisticLikeCount, liked);
             this.likeRequestPending = true;
-            if (fallbackPostDetails[this.selectedPostId]) {
-                const liked = !this.selectedPostLiked;
-                this.selectedPost.likeCount = Math.max(0, Number(this.selectedPost.likeCount || 0) + (liked ? 1 : -1));
-                this.selectedPost.likedByCurrentUser = liked;
-                fallbackPostDetails[this.selectedPostId].likeCount = this.selectedPost.likeCount;
-                this.setStoredLike(this.selectedPostId, liked);
+            if (fallbackPostDetails[postId]) {
+                this.setStoredLike(postId, liked);
                 this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
                 this.likeRequestPending = false;
                 return;
             }
 
             try {
-                const data = await this.request(`/api/posts/${this.selectedPostId}/like`, {
+                const data = await this.request(`/api/posts/${postId}/like`, {
                     method: "POST"
                 }, "", null, true);
 
                 if (data) {
                     this.selectedPost = normaliseDetail(data);
                     const liked = Boolean(this.selectedPost.likedByCurrentUser);
-                    this.setStoredLike(this.selectedPostId, liked);
-                    const postInCache = this.defaultHomepagePostsCache.find((post) => post.id === this.selectedPostId);
-                    if (postInCache) {
-                        postInCache.likeCount = data.likeCount;
-                        postInCache.likedByCurrentUser = liked;
-                    }
-
-                    const postInList = this.posts.find((post) => post.id === this.selectedPostId);
-                    if (postInList) {
-                        postInList.likeCount = data.likeCount;
-                        postInList.likedByCurrentUser = liked;
-                    }
-
+                    this.applyPostLikeState(postId, data.likeCount, liked);
+                    this.setStoredLike(postId, liked);
                     this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
+                } else {
+                    this.applyPostLikeState(postId, previousLikeCount, previousLiked);
                 }
             } finally {
                 this.likeRequestPending = false;
@@ -2862,29 +2986,31 @@ createApp({
             });
         },
         hasRealCover(url) {
-            return Boolean(String(url || "").trim());
+            return Boolean(resolveImageCandidate(url));
+        },
+        hasPostProvidedCover(post) {
+            return Boolean(resolvePostOwnCoverImage(post));
+        },
+        getPostOwnCoverImage(post) {
+            return resolvePostOwnCoverImage(post);
+        },
+        getPostCoverImage(post) {
+            return resolvePostCoverImage(post);
+        },
+        getDefaultCoverImage(categoryName) {
+            return resolveDefaultCoverImage(categoryName);
         },
         coverCategoryLabel(categoryName) {
-            return this.translateCategory(categoryName || "Traditional Craftsmanship");
+            return this.translateCategory(categoryName || "Heritage Archive");
         },
-        getDefaultCoverTheme(categoryName) {
-            const label = this.coverCategoryLabel(categoryName);
-            return defaultCoverThemeMap[label] || defaultCoverThemeMap.__default;
-        },
-        buildDefaultCoverStyle(categoryName) {
-            const theme = this.getDefaultCoverTheme(categoryName);
-            return {
-                "--cover-primary": theme.primary,
-                "--cover-secondary": theme.secondary,
-                "--cover-accent": theme.accent,
-                "--cover-outline": theme.outline
-            };
-        },
-        coverSurfaceStyle(coverImageUrl, categoryName) {
-            if (this.hasRealCover(coverImageUrl)) {
-                return { backgroundImage: this.buildCover(coverImageUrl) };
+        coverSurfaceStyle(postOrCoverImageUrl, categoryName) {
+            if (postOrCoverImageUrl && typeof postOrCoverImageUrl === "object") {
+                return { backgroundImage: this.buildCover(this.getPostCoverImage(postOrCoverImageUrl)) };
             }
-            return this.buildDefaultCoverStyle(categoryName);
+            const coverImage = this.hasRealCover(postOrCoverImageUrl)
+                ? postOrCoverImageUrl
+                : this.getDefaultCoverImage(categoryName);
+            return { backgroundImage: this.buildCover(coverImage) };
         },
         buildCover(url) {
             const asset = this.resolveAsset(url);
@@ -2968,6 +3094,31 @@ createApp({
         countBytes(value) {
             return new TextEncoder().encode(String(value || "")).length;
         },
+        truncateToByteLimit(value, byteLimit) {
+            const encoder = new TextEncoder();
+            let totalBytes = 0;
+            let result = "";
+
+            for (const character of String(value || "")) {
+                const characterBytes = encoder.encode(character).length;
+                if (totalBytes + characterBytes > byteLimit) {
+                    break;
+                }
+                result += character;
+                totalBytes += characterBytes;
+            }
+
+            return result;
+        },
+        limitPostField(fieldName, byteLimit, event) {
+            const rawValue = event?.target?.value ?? this.postForm[fieldName];
+            const limitedValue = this.truncateToByteLimit(rawValue, byteLimit);
+            this.postForm[fieldName] = limitedValue;
+
+            if (event?.target && event.target.value !== limitedValue) {
+                event.target.value = limitedValue;
+            }
+        },
         validatePostForm() {
             const title = String(this.postForm.title || "").trim();
             const content = String(this.postForm.content || "");
@@ -2975,14 +3126,14 @@ createApp({
             if (!title) {
                 return "A title is required.";
             }
-            if (this.countBytes(title) > 150) {
-                return "Title cannot exceed 150 UTF-8 bytes.";
+            if (this.countBytes(title) > postTitleByteLimit) {
+                return `Title cannot exceed ${postTitleByteLimit} UTF-8 bytes.`;
             }
             if (!content.trim()) {
                 return "Story text cannot be empty.";
             }
-            if (this.countBytes(content) > 60000) {
-                return "Story text cannot exceed 60000 UTF-8 bytes.";
+            if (this.countBytes(content) > postContentByteLimit) {
+                return `Story text cannot exceed ${postContentByteLimit} UTF-8 bytes.`;
             }
             return "";
         },
@@ -3095,33 +3246,35 @@ createApp({
             if (!chartDom || typeof echarts === "undefined") {
                 return;
             }
-            const myChart = echarts.init(chartDom);
-            const pieData = this.categoryStats.filter((stat) => stat.count > 0).map((stat) => ({
-                name: this.translateCategory(stat.name),
-                value: stat.count
+            const myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
+            myChart.off("click");
+            myChart.off("legendselectchanged");
+
+            const pieData = this.categoryPieLegendItems.map((item) => ({
+                name: item.name,
+                value: item.count
             }));
 
             myChart.setOption({
-                color: ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"],
+                color: categoryPieColors,
                 title: { text: "Collections Distribution", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" }, left: "center" },
                 tooltip: { trigger: "item" },
                 legend: {
-                    orient: "vertical",
-                    right: 4,
-                    top: 54,
-                    bottom: 8,
-                    textStyle: { fontSize: 11 },
-                    itemWidth: 12,
-                    itemHeight: 8
+                    show: false,
+                    selectedMode: false
                 },
                 series: [{
                     type: "pie",
-                    radius: ["34%", "62%"],
-                    center: ["36%", "56%"],
+                    selectedMode: false,
+                    radius: ["34%", "64%"],
+                    center: ["50%", "55%"],
+                    label: { show: false },
+                    labelLine: { show: false },
+                    emphasis: { focus: "none", scale: true },
                     itemStyle: { borderRadius: 5, borderColor: "#fff", borderWidth: 2 },
                     data: pieData
                 }]
-            });
+            }, true);
         }
     }
 }).mount("#app");

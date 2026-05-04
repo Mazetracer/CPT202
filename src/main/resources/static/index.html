@@ -113,8 +113,15 @@
                     <article class="chart-card">
                         <div id="chart-comments" class="chart-surface" aria-label="Discussion activity trends chart"></div>
                     </article>
-                    <article class="chart-card">
-                        <div id="chart-categories" class="chart-surface" aria-label="Collections distribution chart"></div>
+                    <article class="chart-card chart-card--category">
+                        <div id="chart-categories" class="chart-surface chart-surface--pie" aria-label="Collections distribution chart"></div>
+                        <div v-if="categoryPieLegendItems.length" class="category-chart-legend" aria-label="Collections distribution legend">
+                            <div v-for="item in categoryPieLegendItems" :key="item.id" class="category-chart-legend__item">
+                                <span class="category-chart-legend__swatch" :style="{ backgroundColor: item.color }"></span>
+                                <span class="category-chart-legend__name">{{ item.name }}</span>
+                                <span class="category-chart-legend__meta">{{ item.count }} &middot; {{ item.percent }}%</span>
+                            </div>
+                        </div>
                     </article>
                 </div>
             </section>
@@ -192,12 +199,11 @@
 
                 <div v-if="paginatedPosts.length" class="post-grid">
                     <article v-for="post in paginatedPosts" :key="post.id" class="post-card card">
-                        <div class="post-card__cover" :class="{ 'cover-surface--default': !hasRealCover(post.coverImageUrl) }" :style="coverSurfaceStyle(post.coverImageUrl, post.categoryName)">
-                            <div v-if="!hasRealCover(post.coverImageUrl)" class="default-cover default-cover--card">
+                        <div class="post-card__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(post) }" :style="coverSurfaceStyle(post)">
+                            <div class="default-cover default-cover--card">
                                 <span class="default-cover__eyebrow">Collection</span>
                                 <strong class="default-cover__title">{{ coverCategoryLabel(post.categoryName) }}</strong>
                             </div>
-                            <span class="story-chip">{{ translateCategory(post.categoryName) }}</span>
                         </div>
                         <div class="post-card__body">
                             <h3>{{ translateText(post.title) }}</h3>
@@ -238,8 +244,8 @@
 
             <div v-if="selectedPost" class="detail-layout">
                 <article class="card detail-card">
-                    <div class="detail-cover" :class="{ 'cover-surface--default': !hasRealCover(selectedPost.coverImageUrl) }" :style="coverSurfaceStyle(selectedPost.coverImageUrl, selectedPost.categoryName)">
-                        <div v-if="!hasRealCover(selectedPost.coverImageUrl)" class="default-cover default-cover--detail">
+                    <div class="detail-cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(selectedPost) }" :style="coverSurfaceStyle(selectedPost)">
+                        <div v-if="!hasPostProvidedCover(selectedPost)" class="default-cover default-cover--detail">
                             <span class="default-cover__eyebrow">Collection</span>
                             <strong class="default-cover__title">{{ coverCategoryLabel(selectedPost.categoryName) }}</strong>
                         </div>
@@ -289,6 +295,7 @@
                             :class="{ liked: selectedPostLiked }"
                             type="button"
                             :disabled="likeRequestPending"
+                            :aria-busy="likeRequestPending ? 'true' : 'false'"
                             @click="likePost"
                         >
                             {{ likeRequestPending ? 'Updating...' : (selectedPostLiked ? 'Liked' : 'Like Article') }}
@@ -341,23 +348,35 @@
                         <strong>{{ editingPostId ? 'Current status: ' + statusLabel(editingPostStatus) + '. Save changes here before submitting for review.' : 'Save a draft first, then submit it for review.' }}</strong>
                     </div>
                     <p v-if="editingRejectReason" class="muted">Latest rejection reason: {{ editingRejectReason }}</p>
-                    <div class="form-grid">
-                        <label>
-                            Title
-                            <span class="form-field__hint">Keep the title within 150 UTF-8 bytes. Mixed Chinese and English text counts by bytes, not characters.</span>
-                            <input v-model="postForm.title" type="text" placeholder="For example: The Needlework Elegance of Suzhou Embroidery">
+                    <div class="form-grid form-grid--draft">
+                        <label class="form-field">
+                            <span class="form-field__label">Title</span>
+                            <span
+                                class="form-field__hint"
+                                :class="{ 'form-field__hint--limit': postTitleByteCount >= postTitleByteLimit }"
+                            >
+                                Maximum {{ postTitleByteLimit }} UTF-8 bytes - {{ postTitleByteCount }}/{{ postTitleByteLimit }}
+                            </span>
+                            <input
+                                v-model="postForm.title"
+                                type="text"
+                                placeholder="e.g. Suzhou Embroidery Stories"
+                                @input="limitPostField('title', postTitleByteLimit, $event)"
+                            >
                         </label>
-                        <label>
-                            Heritage Item
-                            <input v-model="postForm.heritageName" type="text" placeholder="For example: Suzhou Embroidery">
+                        <label class="form-field">
+                            <span class="form-field__label">Heritage Item</span>
+                            <span class="form-field__hint">Name the heritage object, craft, or practice.</span>
+                            <input v-model="postForm.heritageName" type="text" placeholder="e.g. Suzhou Embroidery">
                         </label>
-                        <label>
-                            Region
-                            <input v-model="postForm.region" type="text" placeholder="For example: Suzhou, Jiangsu">
+                        <label class="form-field">
+                            <span class="form-field__label">Region</span>
+                            <span class="form-field__hint">Use city, province, or community location.</span>
+                            <input v-model="postForm.region" type="text" placeholder="e.g. Suzhou, Jiangsu">
                         </label>
-                        <label>
-                            Collection
-                            <span class="form-field__hint">Choose the collection that best matches the heritage type or theme of your article, such as craft, opera, architecture, or festival culture.</span>
+                        <label class="form-field">
+                            <span class="form-field__label">Collection</span>
+                            <span class="form-field__hint">Choose the closest heritage category.</span>
                             <select v-model="postForm.categoryId">
                                 <option value="">Choose a collection</option>
                                 <option v-for="category in categories" :key="category.id" :value="String(category.id)">
@@ -367,10 +386,20 @@
                         </label>
                     </div>
 
-                    <label>
-                        Story Text
-                        <span class="form-field__hint">Story text can be up to 60000 UTF-8 bytes for longer heritage articles.</span>
-                        <textarea v-model="postForm.content" rows="8" placeholder="Describe the history, technique, cultural value, and visual details of the heritage item."></textarea>
+                    <label class="form-field">
+                        <span class="form-field__label">Story Text</span>
+                        <span
+                            class="form-field__hint"
+                            :class="{ 'form-field__hint--limit': postContentByteCount >= postContentByteLimit }"
+                        >
+                            Maximum {{ postContentByteLimit }} UTF-8 bytes - {{ postContentByteCount }}/{{ postContentByteLimit }}
+                        </span>
+                        <textarea
+                            v-model="postForm.content"
+                            rows="8"
+                            placeholder="Write the story, background, process, and cultural value here."
+                            @input="limitPostField('content', postContentByteLimit, $event)"
+                        ></textarea>
                     </label>
 
                     <label>
@@ -577,7 +606,7 @@
                         </div>
                         <div class="request-actions">
                             <button class="ghost-btn small" type="button" @click="openPost(entry.id)">Open article</button>
-                            <button class="ghost-btn small" type="button" @click="toggleLike(entry)">{{ isPostLiked(entry.id) ? 'Unlike' : 'Like' }}</button>
+                            <button class="ghost-btn small" type="button" :disabled="likeRequestPending" @click="toggleLike(entry)">{{ isPostLiked(entry.id) ? 'Unlike' : 'Like' }}</button>
                         </div>
                     </article>
                     <div v-if="!likedPosts.length" class="card empty-state">No liked articles yet. Open a story and save the ones you want to revisit.</div>
@@ -804,11 +833,11 @@
                         <div class="request-actions">
                             <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="primary-btn small" type="button" @click="approveSelectedAdminPost">Approve</button>
                             <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="ghost-btn small" type="button" @click="rejectSelectedAdminPost">Reject</button>
-                            <button v-if="selectedAdminPost.status === 'PUBLISHED'" class="ghost-btn small" type="button" @click="archiveSelectedAdminPost">Archive</button>
                             <button v-if="selectedAdminPost.status === 'ARCHIVED'" class="ghost-btn small" type="button" @click="restoreSelectedAdminPost">Restore</button>
                         </div>
                     </article>
                     <div v-if="!adminArticles.length" class="card empty-state">No articles match the current filter.</div>
+                    <teleport to="body">
                     <div v-if="adminPreviewPost" class="modal-overlay" @click.self="closeAdminPostPreview">
                         <article class="card admin-detail-modal" role="dialog" aria-modal="true" aria-label="Article detail preview">
                             <div class="admin-detail-modal__header">
@@ -831,10 +860,10 @@
                                 <span v-if="reviewerLabel(adminPreviewPost)">Reviewer: {{ translateNickname(reviewerLabel(adminPreviewPost)) }}</span>
                             </div>
                             <div class="admin-detail-modal__body">
-                                <div class="admin-detail-modal__cover" :class="{ 'cover-surface--default': !hasRealCover(adminPreviewPost.coverImageUrl) }" :style="coverSurfaceStyle(adminPreviewPost.coverImageUrl, adminPreviewPost.categoryName)">
+                                <div class="admin-detail-modal__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(adminPreviewPost) }" :style="coverSurfaceStyle(adminPreviewPost)">
                                     <img
-                                        v-if="hasRealCover(adminPreviewPost.coverImageUrl)"
-                                        :src="resolveAsset(adminPreviewPost.coverImageUrl)"
+                                        v-if="hasPostProvidedCover(adminPreviewPost)"
+                                        :src="resolveAsset(getPostOwnCoverImage(adminPreviewPost))"
                                         :alt="`${translateText(adminPreviewPost.title)} cover image`"
                                         class="previewable-image"
                                         @click="openAdminCoverPreview"
@@ -871,6 +900,7 @@
                             </div>
                         </article>
                     </div>
+                    </teleport>
                 </section>
 
                 <section v-else-if="adminSection === 'users'" class="card admin-panel">
