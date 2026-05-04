@@ -28,10 +28,10 @@ public class AuthContextService {
         Long userId = resolveCurrentUserId();
         logger.info("requireActiveUser called - userId: {}", userId);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The user could not be found."));
 
         if (!Boolean.TRUE.equals(user.getActive())) {
-            throw new ForbiddenException("账号已被禁用");
+            throw new ForbiddenException("This account has been disabled.");
         }
 
         return user;
@@ -40,7 +40,7 @@ public class AuthContextService {
     public User requireAdmin() {
         User user = requireActiveUser();
         if (user.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException("仅管理员可执行该操作");
+            throw new ForbiddenException("Only administrators can perform this action.");
         }
         return user;
     }
@@ -48,7 +48,7 @@ public class AuthContextService {
     public User requireContributor() {
         User user = requireActiveUser();
         if (user.getRole() != UserRole.CONTRIBUTOR && user.getRole() != UserRole.ADMIN) {
-            throw new ForbiddenException("仅投稿用户可执行该操作");
+            throw new ForbiddenException("Only contributors can perform this action.");
         }
         return user;
     }
@@ -58,7 +58,7 @@ public class AuthContextService {
         RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
         if (!(attributes instanceof ServletRequestAttributes servletAttributes)) {
             logger.error("Could not get ServletRequestAttributes");
-            throw new ForbiddenException("无法获取当前请求上下文");
+            throw new ForbiddenException("The current request context is unavailable.");
         }
 
         HttpServletRequest request = servletAttributes.getRequest();
@@ -67,7 +67,7 @@ public class AuthContextService {
         
         if (userId == null) {
             logger.error("userId is null");
-            throw new ForbiddenException("请先登录");
+            throw new ForbiddenException("Please sign in again before continuing.");
         }
         return userId;
     }

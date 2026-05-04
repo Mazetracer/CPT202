@@ -41,63 +41,46 @@ const regionMap = {
     "天津": "Tianjin"
 };
 
-const backendMessageMap = {
-    "用户名已存在": "This username is already in use.",
-    "邮箱已被注册": "This email address is already registered.",
-    "手机号已被注册": "This phone number is already registered.",
-    "用户不存在": "The user could not be found.",
-    "账号已被禁用": "This account has been disabled.",
-    "用户名或密码错误": "The username or password is incorrect.",
-    "文章不存在": "The article could not be found.",
-    "分类不存在": "The collection could not be found.",
-    "分类名称已存在": "This collection name already exists.",
-    "评论用户不能为空": "A valid comment author is required.",
-    "评论内容不能为空": "Comment content cannot be empty.",
-    "作者不能为空": "An author is required.",
-    "分类不能为空": "Please choose a collection.",
-    "标题不能为空": "A title is required.",
-    "正文不能为空": "Story text cannot be empty.",
-    "用户名不能为空": "Username cannot be empty.",
-    "用户名长度需要在4到50之间": "Username must be between 4 and 50 characters.",
-    "密码不能为空": "Password cannot be empty.",
-    "密码长度需要在6到30之间": "Password must be between 6 and 30 characters.",
-    "昵称不能为空": "Display name cannot be empty.",
-    "昵称不能超过50个字符": "Display name cannot exceed 50 characters.",
-    "邮箱格式不正确": "Please enter a valid email address.",
-    "邮箱不能超过100个字符": "Email cannot exceed 100 characters.",
-    "手机号不能超过20个字符": "Phone number cannot exceed 20 characters.",
-    "仅管理员可执行该操作": "Only administrators can perform this action.",
-    "请先登录": "Please sign in again before continuing.",
-    "当前文章状态不允许提交审核": "This article cannot be submitted for review right now.",
-    "仅草稿或已驳回文章可编辑": "Only draft or rejected articles can be edited.",
-    "仅待审核文章可执行审核操作": "Only pending review articles can be reviewed.",
-    "驳回原因不能为空": "Please provide a rejection reason.",
-    "仅已发布文章可归档": "Only published articles can be archived.",
-    "仅已归档文章可恢复发布": "Only archived articles can be restored.",
-    "不能修改管理员角色": "Administrator roles cannot be changed.",
-    "不支持将用户设置为管理员": "Users cannot be promoted to administrator here.",
-    "当前角色无需调整": "This user already has that role.",
-    "仅支持在普通用户与贡献者之间调整角色": "Only USER and CONTRIBUTOR roles can be adjusted here.",
-    "目标角色不能为空": "Please choose a target role.",
-    "用户已启用": "User account activated successfully.",
-    "用户已停用": "User account deactivated successfully.",
-    "用户当前已启用": "This user account is already active.",
-    "用户当前已停用": "This user account is already inactive.",
-    "不能停用管理员账号": "Administrator accounts cannot be deactivated.",
-    "不能启用管理员账号": "Administrator accounts cannot be activated here.",
-    "不能停用当前登录管理员": "You cannot deactivate the administrator account that is currently signed in.",
-    "当前角色无需申请贡献者权限": "Your current role does not require a contributor application.",
-    "已有待处理的贡献者申请": "You already have a pending contributor application.",
-    "申请不存在": "The application could not be found.",
-    "仅待处理申请可审批": "Only pending applications can be reviewed.",
-    "申请人当前角色不允许审批此申请": "This application can no longer be reviewed because the applicant role has changed."
-};
+const backendMessageMap = {};
 
 const categoryDescriptionMap = {
     "传统技艺": "Material culture, workshop practice, motifs, and making processes.",
     "传统戏曲": "Performance traditions, costume, vocal lineages, and stage memory.",
     "古建筑": "Historic buildings, construction craft, spatial heritage, and preservation.",
     "民俗节庆": "Seasonal ritual, festivals, community gatherings, and oral custom."
+};
+
+const defaultCoverThemeMap = {
+    "Traditional Craftsmanship": {
+        primary: "#8f4b2f",
+        secondary: "#c9a36d",
+        accent: "#f3e2c6",
+        outline: "rgba(111, 49, 27, 0.18)"
+    },
+    "Traditional Opera": {
+        primary: "#6f311b",
+        secondary: "#b86f4d",
+        accent: "#f4ddd0",
+        outline: "rgba(111, 49, 27, 0.2)"
+    },
+    "Historic Architecture": {
+        primary: "#6d7561",
+        secondary: "#b29a76",
+        accent: "#ece3d4",
+        outline: "rgba(82, 88, 72, 0.18)"
+    },
+    "Folk Rituals & Festivals": {
+        primary: "#a15733",
+        secondary: "#d6a45d",
+        accent: "#f6e6bf",
+        outline: "rgba(143, 75, 47, 0.18)"
+    },
+    "__default": {
+        primary: "#7f5d42",
+        secondary: "#ccb08a",
+        accent: "#f2e6d3",
+        outline: "rgba(111, 49, 27, 0.16)"
+    }
 };
 
 const fallbackCategories = [
@@ -317,6 +300,7 @@ const createEmptyPostForm = () => ({
 });
 
 const draftCacheKey = "heritage-draft-cache";
+const likedPostsStorageKey = "heritage-liked-posts";
 
 const readStoredDraftCache = () => {
     const raw = localStorage.getItem(draftCacheKey);
@@ -346,6 +330,20 @@ const readStoredUser = () => {
     }
 };
 
+const readStoredLikedPostMap = () => {
+    const raw = localStorage.getItem(likedPostsStorageKey);
+    if (!raw) {
+        return {};
+    }
+
+    try {
+        return JSON.parse(raw);
+    } catch (error) {
+        localStorage.removeItem(likedPostsStorageKey);
+        return {};
+    }
+};
+
 const normaliseSummary = (post, index = 0) => ({
     id: post.id ?? 1000 + index,
     title: post.title || "Untitled heritage article",
@@ -354,16 +352,19 @@ const normaliseSummary = (post, index = 0) => ({
     region: post.region || "",
     status: post.status || "PUBLISHED",
     authorName: post.authorName || post.authorNickname || "Anonymous Contributor",
+    categoryId: post.categoryId == null ? "" : String(post.categoryId),
     categoryName: post.categoryName || "传统技艺",
     likeCount: Number(post.likeCount || 0),
     favoriteCount: Number(post.favoriteCount || 0),
     commentCount: Number(post.commentCount || 0),
+    viewCount: Number(post.viewCount || 0),
     createdAt: post.createdAt || "2026-04-01T10:00:00"
 });
 
 const normaliseDetail = (detail, index = 0) => ({
     ...normaliseSummary(detail, index),
     content: detail.content || "This front-end preview card does not have a full article body yet.",
+    likedByCurrentUser: Boolean(detail.likedByCurrentUser),
     imageUrls: Array.isArray(detail.imageUrls) ? detail.imageUrls : [],
     comments: Array.isArray(detail.comments) ? detail.comments : []
 });
@@ -371,18 +372,18 @@ const normaliseDetail = (detail, index = 0) => ({
 const buildFallbackSummaries = () =>
     Object.values(fallbackPostDetails).map((detail, index) => normaliseSummary(detail, index));
 
-const mergeCategoriesWithFallback = (items = []) => {
+const normaliseCategories = (items = []) => {
     const seen = new Set();
-    const merged = [];
+    const normalised = [];
 
-    [...items, ...fallbackCategories].forEach((category, index) => {
+    items.forEach((category, index) => {
         const name = category?.name;
         if (!name || seen.has(name)) {
             return;
         }
 
         seen.add(name);
-        merged.push({
+        normalised.push({
             id: category.id ?? 500 + index,
             name,
             description: category.description || categoryDescriptionMap[name] || "",
@@ -390,7 +391,13 @@ const mergeCategoriesWithFallback = (items = []) => {
         });
     });
 
-    return merged;
+    return normalised;
+};
+
+const buildFallbackCategories = () => normaliseCategories(fallbackCategories);
+
+const mergeCategoriesWithFallback = (items = []) => {
+    return normaliseCategories([...items, ...fallbackCategories]);
 };
 
 const mergePostsWithFallback = (items = []) => {
@@ -430,6 +437,15 @@ createApp({
             selectedCategoryFilter: "",
             selectedCategoryFocus: "",
             homeSearchQuery: "",
+            appliedHomeSearchQuery: "",
+            appliedCategoryFilter: "",
+            homepageSearchLoading: false,
+            defaultHomepagePostsCache: [],
+            hasDefaultHomepagePostsCache: false,
+            homepageRequestSequence: 0,
+            latestHomepageRequestSequence: 0,
+            currentPostPage: 1,
+            postPageSize: 8,
             profileSection: "published",
             adminSection: "articles",
             currentUser: readStoredUser(),
@@ -445,6 +461,13 @@ createApp({
                 username: "",
                 password: ""
             },
+            profileForm: {
+                nickname: "",
+                avatarUrl: "",
+                bio: ""
+            },
+            profileEditingMode: "",
+            profileAvatarFileLabel: "No file selected",
             authMode: "login",
             authBanner: "",
             postForm: createEmptyPostForm(),
@@ -456,6 +479,9 @@ createApp({
             commentForm: {
                 content: ""
             },
+            currentCommentPage: 1,
+            commentPageSize: 5,
+            likeRequestPending: false,
             workspaceDrafts: [],
             workspacePending: [],
             contributorApplications: [],
@@ -474,17 +500,31 @@ createApp({
             adminPostTotalPages: 0,
             adminPostHasPrevious: false,
             adminPostHasNext: false,
+            adminUserPage: 0,
+            adminUserSize: 10,
+            adminUserTotalElements: 0,
+            adminUserTotalPages: 0,
+            adminUserHasPrevious: false,
+            adminUserHasNext: false,
             adminUserQuery: "",
             adminUserRoleFilter: "",
             adminUserActiveFilter: "",
             adminContributorApplicationQuery: "",
-            adminContributorApplicationStatusFilter: "",
             adminContributorApplicationSortBy: "created_at_desc",
             contributorApplicationRejectReasons: {},
             selectedAdminPostId: null,
             selectedAdminPost: null,
+            adminPreviewPostId: null,
+            adminPreviewPost: null,
+            imagePreviewOpen: false,
+            imagePreviewImages: [],
+            imagePreviewIndex: 0,
+            imagePreviewZoom: 1,
+            imagePreviewSource: "",
             adminReviewReason: "",
             draftCache: readStoredDraftCache(),
+            likedPostMap: readStoredLikedPostMap(),
+            likedPostIds: [],
             contributorApplicationForm: {
                 applicationReason: "",
                 attachment: null
@@ -499,6 +539,33 @@ createApp({
         isContributor() {
             return this.currentUser?.role === "CONTRIBUTOR" || this.currentUser?.role === "ADMIN";
         },
+        canAccessContributorWorkspace() {
+            return this.isContributor;
+        },
+        profileBioByteCount() {
+            return this.countBytes(this.profileForm.bio);
+        },
+        showPermissionRequestModule() {
+            return this.currentUser?.role === "USER";
+        },
+        profileIdentityLabel() {
+            if (this.isAdmin) {
+                return "Administrator account";
+            }
+            if (this.isContributor) {
+                return "Contributor account";
+            }
+            return "Member account";
+        },
+        profileIdentityHeading() {
+            if (this.isAdmin) {
+                return "Administrator Identity";
+            }
+            if (this.isContributor) {
+                return "Contributor Identity";
+            }
+            return "User Identity";
+        },
         currentViewLabel() {
             const labels = {
                 home: "Homepage dashboard",
@@ -511,35 +578,114 @@ createApp({
             return labels[this.currentView] || "Homepage dashboard";
         },
         totalStories() {
-            return this.posts.length;
+            return this.defaultHomepagePostsCache.length;
         },
         totalComments() {
-            return this.posts.reduce((sum, post) => sum + Number(post.commentCount || 0), 0);
+            return this.defaultHomepagePostsCache.reduce((sum, post) => sum + Number(post.commentCount || 0), 0);
         },
         totalContributors() {
-            return new Set(this.posts.map((post) => post.authorName).filter(Boolean)).size;
+            return new Set(this.defaultHomepagePostsCache.map((post) => post.authorName).filter(Boolean)).size;
+        },
+        visibleCollectionCount() {
+            return this.categoryStats.filter((stat) => stat.count > 0).length;
+        },
+        activeHomepageKeyword() {
+            return this.appliedHomeSearchQuery.trim();
+        },
+        selectedCategoryFilterLabel() {
+            if (!this.appliedCategoryFilter) {
+                return "";
+            }
+
+            const categoryFilter = String(this.appliedCategoryFilter);
+            const category = this.categories.find((item) => item.name === categoryFilter || String(item.id) === categoryFilter);
+            if (category?.name) {
+                return this.translateCategory(category.name);
+            }
+
+            const stat = this.categoryStats.find((item) => item.name === categoryFilter || String(item.id) === categoryFilter);
+            if (stat?.name) {
+                return this.translateCategory(stat.name);
+            }
+
+            return this.translateCategory(categoryFilter);
+        },
+        hasActiveHomepageFilters() {
+            return Boolean(this.activeHomepageKeyword || this.appliedCategoryFilter);
+        },
+        homepageEmptyStateTitle() {
+            return this.hasActiveHomepageFilters
+                ? "No matching homepage articles"
+                : "No published articles are available yet";
+        },
+        homepageEmptyStateMessage() {
+            const keyword = this.activeHomepageKeyword;
+            const category = this.selectedCategoryFilterLabel || "the selected collection";
+
+            if (keyword && this.appliedCategoryFilter) {
+                return `No articles match "${keyword}" in ${category}. Try another keyword or clear one of the filters.`;
+            }
+            if (keyword) {
+                return `No articles match "${keyword}". Try a broader keyword or clear the search.`;
+            }
+            if (this.appliedCategoryFilter) {
+                return `No articles are available in ${category} right now. Try another collection or clear the filter.`;
+            }
+            return "The homepage feed is currently empty. Try refreshing again in a moment.";
+        },
+        hotRankingEmptyMessage() {
+            return "No homepage ranking is available yet.";
         },
         filteredPosts() {
-            const query = this.homeSearchQuery.trim().toLowerCase();
-            return this.posts.filter((post) => {
-                const matchesCategory = !this.selectedCategoryFilter || post.categoryName === this.selectedCategoryFilter;
-                const matchesSearch = !query || this.matchesSearch(post, query);
-                return matchesCategory && matchesSearch;
-            });
+            return this.posts;
+        },
+        articleResultsHeading() {
+            return this.hasActiveHomepageFilters ? "Search Results" : "All Articles";
+        },
+        totalPostPages() {
+            return Math.max(1, Math.ceil(this.filteredPosts.length / this.postPageSize));
+        },
+        hasPostPagination() {
+            return this.filteredPosts.length > this.postPageSize;
+        },
+        paginatedPosts() {
+            const page = Math.min(Math.max(this.currentPostPage, 1), this.totalPostPages);
+            const start = (page - 1) * this.postPageSize;
+            return this.filteredPosts.slice(start, start + this.postPageSize);
+        },
+        postResultCountLabel() {
+            const total = this.filteredPosts.length;
+            if (!total) {
+                return "0 articles";
+            }
+            if (!this.hasPostPagination) {
+                return `${total} ${total === 1 ? "article" : "articles"}`;
+            }
+            const start = (Math.min(Math.max(this.currentPostPage, 1), this.totalPostPages) - 1) * this.postPageSize + 1;
+            const end = Math.min(start + this.postPageSize - 1, total);
+            return `${start}-${end} of ${total} articles`;
         },
         featuredPost() {
             return this.filteredPosts[0] || this.hotPosts[0] || this.posts[0] || null;
         },
         hotPosts() {
-            return [...this.posts]
+            return [...this.defaultHomepagePostsCache]
                 .sort((left, right) => this.buildHeatScore(right) - this.buildHeatScore(left))
                 .slice(0, 5);
         },
         categoryStats() {
-            const categories = this.categories.length ? this.categories : mergeCategoriesWithFallback([]);
+            const categories = this.categories.length
+                ? this.categories
+                : normaliseCategories(this.defaultHomepagePostsCache.map((post) => ({
+                    id: post.categoryId || undefined,
+                    name: post.categoryName,
+                    description: categoryDescriptionMap[post.categoryName] || ""
+                })));
             const counts = categories.map((category) => {
-                const posts = this.posts.filter((post) => post.categoryName === category.name);
+                const categoryId = String(category.id);
+                const posts = this.defaultHomepagePostsCache.filter((post) => String(post.categoryId) === categoryId);
                 return {
+                    id: categoryId,
                     name: category.name,
                     description: category.description || categoryDescriptionMap[category.name] || "",
                     count: posts.length,
@@ -557,22 +703,80 @@ createApp({
                 .sort((left, right) => right.count - left.count);
         },
         focusedCategory() {
-            return this.selectedCategoryFocus || this.categoryStats[0]?.name || "";
+            const availableCategoryIds = this.categoryStats
+                .filter((stat) => stat.count > 0)
+                .map((stat) => String(stat.id));
+
+            if (this.appliedCategoryFilter) {
+                const appliedCategoryId = this.resolveCategoryId(this.appliedCategoryFilter) || String(this.appliedCategoryFilter);
+                return availableCategoryIds.includes(appliedCategoryId)
+                    ? appliedCategoryId
+                    : "";
+            }
+
+            if (this.selectedCategoryFocus && availableCategoryIds.includes(this.selectedCategoryFocus)) {
+                return this.selectedCategoryFocus;
+            }
+
+            return availableCategoryIds[0] || "";
+        },
+        focusedCategoryName() {
+            if (!this.focusedCategory) {
+                return "";
+            }
+
+            const stat = this.categoryStats.find((item) => String(item.id) === String(this.focusedCategory));
+            if (stat) {
+                return stat.name;
+            }
+
+            const category = this.categories.find((item) => String(item.id) === String(this.focusedCategory));
+            return category?.name || "";
         },
         focusedCategoryPosts() {
             if (!this.focusedCategory) {
                 return [];
             }
-            return this.posts.filter((post) => post.categoryName === this.focusedCategory);
+            return this.filteredPosts.filter((post) => String(post.categoryId) === String(this.focusedCategory));
         },
         profilePublishedPosts() {
             return this.myPosts.filter((post) => post.status === "PUBLISHED");
+        },
+        likedPosts() {
+            return this.defaultHomepagePostsCache.filter((post) => this.likedPostIds.includes(Number(post.id)));
+        },
+        selectedPostLiked() {
+            if (!this.selectedPost?.id) {
+                return false;
+            }
+            return Boolean(this.selectedPost.likedByCurrentUser);
+        },
+        selectedPostComments() {
+            return Array.isArray(this.selectedPost?.comments) ? this.selectedPost.comments : [];
+        },
+        totalCommentPages() {
+            return Math.max(1, Math.ceil(this.selectedPostComments.length / this.commentPageSize));
+        },
+        hasCommentPagination() {
+            return this.selectedPostComments.length > this.commentPageSize;
+        },
+        paginatedComments() {
+            const page = Math.min(Math.max(this.currentCommentPage, 1), this.totalCommentPages);
+            const start = (page - 1) * this.commentPageSize;
+            return this.selectedPostComments.slice(start, start + this.commentPageSize);
+        },
+        commentPaginationLabel() {
+            if (!this.selectedPostComments.length) {
+                return "No comments";
+            }
+            return `Page ${Math.min(this.currentCommentPage, this.totalCommentPages)} of ${this.totalCommentPages}`;
         },
         profileSummary() {
             return {
                 published: this.profilePublishedPosts.length,
                 pending: this.workspacePending.length,
                 drafts: this.workspaceDrafts.length,
+                liked: this.likedPosts.length,
                 requests: this.contributorApplications.length
             };
         },
@@ -606,6 +810,57 @@ createApp({
             }
             return `Page ${this.adminPostPage + 1} of ${this.adminPostTotalPages}`;
         },
+        adminUserPaginationLabel() {
+            if (!this.adminUserTotalPages) {
+                return "Page 1 of 1";
+            }
+            return `Page ${this.adminUserPage + 1} of ${this.adminUserTotalPages}`;
+        },
+        adminKpiCards() {
+            const reviewQueueCount = this.adminApprovalsView.length;
+            return [
+                {
+                    label: "Managed Articles",
+                    value: this.adminArticles.length,
+                    detail: "Draft, review, published, and archived article states.",
+                    microLabel: "Total",
+                    badgeTone: "neutral",
+                    targetSection: "articles",
+                    isActive: this.adminSection === "articles",
+                    isAlert: false
+                },
+                {
+                    label: "Managed Users",
+                    value: this.adminUserTotalElements || this.adminUsersView.length,
+                    detail: "Accounts with role and activity controls.",
+                    microLabel: "Total",
+                    badgeTone: "neutral",
+                    targetSection: "users",
+                    isActive: this.adminSection === "users",
+                    isAlert: false
+                },
+                {
+                    label: "Contributor Applications",
+                    value: this.adminContributorApplications.length,
+                    detail: "Pending contributor access requests.",
+                    microLabel: "Pending",
+                    badgeTone: "pending",
+                    targetSection: "contributor-review",
+                    isActive: this.adminSection === "contributor-review",
+                    isAlert: false
+                },
+                {
+                    label: "Article Review Queue",
+                    value: reviewQueueCount,
+                    detail: "Pending article reviews waiting for action.",
+                    microLabel: reviewQueueCount > 0 ? "Needs action" : "Clear",
+                    badgeTone: reviewQueueCount > 0 ? "alert" : "clear",
+                    targetSection: "approvals",
+                    isActive: this.adminSection === "approvals",
+                    isAlert: reviewQueueCount > 0
+                }
+            ];
+        },
         adminSortColumnLabel() {
             if (this.adminSortOption === "SUBMITTED_DESC") {
                 return "Submitted";
@@ -617,15 +872,6 @@ createApp({
         },
         adminUsersView() {
             return this.adminUsers
-                .filter((user) => {
-                    if (this.adminUserActiveFilter === "active") {
-                        return user.active === true;
-                    }
-                    if (this.adminUserActiveFilter === "inactive") {
-                        return user.active === false;
-                    }
-                    return true;
-                })
                 .map((user) => ({
                     ...user,
                     status: user.active ? "Active" : "Inactive",
@@ -633,8 +879,14 @@ createApp({
                 }));
         },
         adminUserResultCountLabel() {
-            const count = this.adminUsersView.length;
-            return `${count} result${count === 1 ? "" : "s"}`;
+            const total = this.adminUserTotalElements;
+            if (!total) {
+                return "Showing 0 of 0 users";
+            }
+
+            const start = this.adminUserPage * this.adminUserSize + 1;
+            const end = Math.min(start + this.adminUsersView.length - 1, total);
+            return `Showing ${start}-${end} of ${total} users`;
         },
         adminUserFilterSummary() {
             const parts = [];
@@ -677,25 +929,21 @@ createApp({
         adminContributorApplicationFilterSummary() {
             const parts = [];
 
-            if (this.adminContributorApplicationStatusFilter) {
-                parts.push(this.statusLabel(this.adminContributorApplicationStatusFilter));
-            }
-
             if (this.adminContributorApplicationQuery.trim()) {
                 parts.push(`"${this.adminContributorApplicationQuery.trim()}"`);
             }
 
             if (!parts.length) {
-                return "Showing: All applications";
+                return "Showing: Pending applications";
             }
 
             return `Showing: ${parts.join(" · ")}`;
         },
         adminContributorApplicationEmptyLabel() {
             if (!this.adminContributorApplications.length) {
-                return "No contributor applications submitted yet.";
+                return "No pending contributor applications right now.";
             }
-            return "No contributor applications match the current filter.";
+            return "No pending contributor applications match the current filter.";
         },
         adminApprovalsView() {
             const query = this.pendingQueueQuery.trim().toLowerCase();
@@ -774,26 +1022,168 @@ createApp({
         },
         publishPrimaryLabel() {
             return this.editingPostId ? "Update draft" : "Save draft";
+        },
+        currentPreviewImage() {
+            return this.imagePreviewImages[this.imagePreviewIndex] || "";
+        },
+        hasPreviewNavigation() {
+            return this.imagePreviewImages.length > 1;
+        },
+        imagePreviewScaleLabel() {
+            return `${Math.round(this.imagePreviewZoom * 100)}%`;
+        }
+    },
+    watch: {
+        defaultHomepagePostsCache: {
+            handler() {
+                this.$nextTick(() => {
+                    if (this.currentView === "home") {
+                        this.renderCharts();
+                    }
+                });
+            },
+            deep: true
         }
     },
     async mounted() {
-        await Promise.all([this.fetchCategories(), this.fetchPosts()]);
+        await this.fetchHomepageData();
         if (this.currentUser) {
+            this.syncProfileFormFromCurrentUser();
+            this.syncLikedPostsFromStorage();
             await this.refreshWorkspaceData();
         }
         this.handleHash();
         window.addEventListener("hashchange", this.handleHash);
+        window.addEventListener("keydown", this.handleGlobalKeydown);
+        this.syncBodyScrollLock();
     },
     beforeUnmount() {
         window.removeEventListener("hashchange", this.handleHash);
+        window.removeEventListener("keydown", this.handleGlobalKeydown);
+        window.removeEventListener("resize", this.handleChartResize);
+        document.body.classList.remove("body--modal-open");
     },
     methods: {
+        redirectGuestToRegister(message = "Sign in before viewing your profile.") {
+            this.currentView = "auth";
+            this.authMode = "login";
+            this.authBanner = message;
+            this.errorMessage = "";
+            window.location.hash = "#auth";
+            this.focusAuthInput("loginUsernameInput");
+        },
+        currentLikedPostsKey() {
+            return this.currentUser?.id ? String(this.currentUser.id) : "";
+        },
+        syncLikedPostsFromStorage() {
+            const key = this.currentLikedPostsKey();
+            if (!key) {
+                this.likedPostIds = [];
+                return;
+            }
+            const stored = this.likedPostMap[key];
+            this.likedPostIds = Array.isArray(stored)
+                ? [...new Set(stored.map((id) => Number(id)).filter((id) => Number.isFinite(id)))]
+                : [];
+        },
+        persistLikedPosts() {
+            localStorage.setItem(likedPostsStorageKey, JSON.stringify(this.likedPostMap));
+        },
+        isPostLiked(postId) {
+            return this.likedPostIds.includes(Number(postId));
+        },
+        displayLikeCount(post) {
+            if (!post) {
+                return 0;
+            }
+            return Number(post.likeCount || 0);
+        },
+        setStoredLike(postId, liked) {
+            const key = this.currentLikedPostsKey();
+            if (!key) {
+                return;
+            }
+            const numericPostId = Number(postId);
+            const current = new Set(this.likedPostIds.map((id) => Number(id)));
+            if (liked) {
+                current.add(numericPostId);
+            } else {
+                current.delete(numericPostId);
+            }
+            this.likedPostIds = [...current];
+            this.likedPostMap[key] = [...this.likedPostIds];
+            this.persistLikedPosts();
+        },
+        toggleLike(post, syncOnly = false) {
+            if (!post?.id) {
+                return;
+            }
+            if (!this.currentUser) {
+                this.redirectGuestToRegister("Sign in before opening your profile or liking articles.");
+                return;
+            }
+
+            const postId = Number(post.id);
+            const key = this.currentLikedPostsKey();
+            const liked = this.isPostLiked(postId);
+
+            if (syncOnly) {
+                this.likedPostIds = liked ? this.likedPostIds : [...this.likedPostIds, postId];
+            } else if (liked) {
+                this.likedPostIds = this.likedPostIds.filter((id) => id !== postId);
+            } else {
+                this.likedPostIds = [...this.likedPostIds, postId];
+            }
+
+            this.likedPostMap[key] = [...this.likedPostIds];
+            this.persistLikedPosts();
+            if (!syncOnly) {
+                this.showSuccess(liked ? "Article removed from your liked list." : "Article saved to your liked list.");
+            }
+        },
+        syncProfileFormFromCurrentUser() {
+            this.profileForm.nickname = this.currentUser?.nickname || "";
+            this.profileForm.avatarUrl = this.currentUser?.avatarUrl || "";
+            this.profileForm.bio = this.currentUser?.bio || "";
+            this.profileAvatarFileLabel = "No file selected";
+        },
+        mergeCurrentUserProfile(profile) {
+            if (!this.currentUser || !profile) {
+                return;
+            }
+            this.currentUser = {
+                ...this.currentUser,
+                ...profile
+            };
+            this.storeUser(this.currentUser);
+            this.syncProfileFormFromCurrentUser();
+        },
+        ensureAccessibleProfileSection() {
+            const allowedSections = this.canAccessContributorWorkspace
+                ? ["published", "pending", "drafts", "liked"]
+                : (this.showPermissionRequestModule ? ["liked", "permissions"] : ["liked"]);
+            if (!allowedSections.includes(this.profileSection)) {
+                this.profileSection = allowedSections[0];
+            }
+        },
+        openProfileEditor(mode) {
+            this.profileEditingMode = mode;
+            this.syncProfileFormFromCurrentUser();
+        },
+        closeProfileEditor() {
+            this.profileEditingMode = "";
+            this.syncProfileFormFromCurrentUser();
+        },
         navigate(view, updateHash = true) {
             let nextView = view;
 
+            if (this.imagePreviewOpen) {
+                this.closeImagePreview();
+            }
+
             if (view === "profile" && !this.currentUser) {
-                this.showError("Please sign in to open your personal workspace.");
-                nextView = "auth";
+                this.redirectGuestToRegister("Sign in before viewing your profile.");
+                return;
             }
 
             if (view === "publish" && !this.isContributor) {
@@ -806,23 +1196,20 @@ createApp({
                 nextView = this.currentUser ? "profile" : "auth";
             }
 
+            if (nextView !== "admin") {
+                this.closeAdminPostPreview();
+            }
+
             this.currentView = nextView;
             if (nextView === "auth") {
                 this.authMode = "login";
             }
             if (nextView === "profile" && this.currentUser) {
+                this.ensureAccessibleProfileSection();
                 this.refreshWorkspaceData();
             }
             if (nextView === "admin" && this.isAdmin) {
-                this.fetchAdminUsers();
-                if (this.adminSection === "users") {
-                    this.fetchAdminContributorApplications();
-                }
-                if (this.adminSection === "approvals") {
-                    this.fetchPendingQueue();
-                } else {
-                    this.fetchAdminPosts();
-                }
+                this.warmAdminDashboardData();
             }
             if (updateHash) {
                 window.location.hash = `#${nextView}`;
@@ -830,6 +1217,9 @@ createApp({
         },
         handleHash() {
             const hash = window.location.hash.replace("#", "");
+            if (this.imagePreviewOpen) {
+                this.closeImagePreview();
+            }
             if (!hash || hash === "home") {
                 this.currentView = "home";
                 return;
@@ -854,6 +1244,122 @@ createApp({
                 this.navigate(hash, false);
             }
         },
+        handleGlobalKeydown(event) {
+            if (this.imagePreviewOpen) {
+                if (event.key === "Escape") {
+                    this.closeImagePreview();
+                    return;
+                }
+                if (event.key === "ArrowLeft" && this.hasPreviewNavigation) {
+                    event.preventDefault();
+                    this.showPreviousPreviewImage();
+                    return;
+                }
+                if (event.key === "ArrowRight" && this.hasPreviewNavigation) {
+                    event.preventDefault();
+                    this.showNextPreviewImage();
+                    return;
+                }
+            }
+
+            if (event.key === "Escape" && this.adminPreviewPost) {
+                this.closeAdminPostPreview();
+            }
+        },
+        syncBodyScrollLock() {
+            document.body.classList.toggle("body--modal-open", this.imagePreviewOpen || Boolean(this.adminPreviewPost));
+        },
+        buildPreviewImageList(images = []) {
+            return [...new Set((Array.isArray(images) ? images : []).filter(Boolean))];
+        },
+        openImagePreview(images = [], startIndex = 0, source = "detail") {
+            const previewImages = this.buildPreviewImageList(images);
+            if (!previewImages.length) {
+                return;
+            }
+
+            const safeIndex = Math.min(Math.max(Number(startIndex) || 0, 0), previewImages.length - 1);
+            this.imagePreviewImages = previewImages;
+            this.imagePreviewIndex = safeIndex;
+            this.imagePreviewZoom = 1;
+            this.imagePreviewSource = source;
+            this.imagePreviewOpen = true;
+            this.syncBodyScrollLock();
+        },
+        closeImagePreview() {
+            this.imagePreviewOpen = false;
+            this.imagePreviewImages = [];
+            this.imagePreviewIndex = 0;
+            this.imagePreviewZoom = 1;
+            this.imagePreviewSource = "";
+            this.syncBodyScrollLock();
+        },
+        resetImagePreviewZoom() {
+            this.imagePreviewZoom = 1;
+        },
+        updateImagePreviewZoom(nextZoom) {
+            const boundedZoom = Math.min(Math.max(nextZoom, 0.6), 3);
+            this.imagePreviewZoom = Math.round(boundedZoom * 100) / 100;
+        },
+        zoomImagePreviewIn() {
+            this.updateImagePreviewZoom(this.imagePreviewZoom + 0.2);
+        },
+        zoomImagePreviewOut() {
+            this.updateImagePreviewZoom(this.imagePreviewZoom - 0.2);
+        },
+        handleImagePreviewWheel(event) {
+            if (!this.imagePreviewOpen) {
+                return;
+            }
+            event.preventDefault();
+            if (event.deltaY < 0) {
+                this.zoomImagePreviewIn();
+                return;
+            }
+            this.zoomImagePreviewOut();
+        },
+        showPreviewImage(index) {
+            if (!this.imagePreviewImages.length) {
+                return;
+            }
+            const safeIndex = Math.min(Math.max(Number(index) || 0, 0), this.imagePreviewImages.length - 1);
+            this.imagePreviewIndex = safeIndex;
+            this.resetImagePreviewZoom();
+        },
+        showPreviousPreviewImage() {
+            if (!this.hasPreviewNavigation) {
+                return;
+            }
+            const nextIndex = (this.imagePreviewIndex - 1 + this.imagePreviewImages.length) % this.imagePreviewImages.length;
+            this.showPreviewImage(nextIndex);
+        },
+        showNextPreviewImage() {
+            if (!this.hasPreviewNavigation) {
+                return;
+            }
+            const nextIndex = (this.imagePreviewIndex + 1) % this.imagePreviewImages.length;
+            this.showPreviewImage(nextIndex);
+        },
+        openDetailGalleryPreview(startIndex = 0) {
+            this.openImagePreview(this.selectedPost?.imageUrls || [], startIndex, "public-detail");
+        },
+        buildAdminPreviewImages() {
+            if (!this.adminPreviewPost) {
+                return [];
+            }
+            return this.buildPreviewImageList([
+                this.adminPreviewPost.coverImageUrl,
+                ...(Array.isArray(this.adminPreviewPost.imageUrls) ? this.adminPreviewPost.imageUrls : [])
+            ]);
+        },
+        openAdminCoverPreview() {
+            this.openImagePreview(this.buildAdminPreviewImages(), 0, "admin-preview");
+        },
+        openAdminGalleryPreview(imageUrl, galleryIndex = 0) {
+            const previewImages = this.buildAdminPreviewImages();
+            const previewIndex = previewImages.indexOf(imageUrl);
+            this.openImagePreview(previewImages, previewIndex >= 0 ? previewIndex : galleryIndex + 1, "admin-preview");
+        },
         authHeaders(baseHeaders = {}) {
             const headers = { ...baseHeaders };
             if (this.currentUser?.token) {
@@ -861,30 +1367,233 @@ createApp({
             }
             return headers;
         },
+        async warmAdminDashboardData() {
+            if (!this.isAdmin) {
+                return;
+            }
+            await Promise.all([
+                this.fetchAdminPosts(),
+                this.fetchAdminUsers(),
+                this.fetchAdminContributorApplications(),
+                this.fetchPendingQueue()
+            ]);
+        },
+        handleChartResize() {
+            ["chart-posts", "chart-comments", "chart-categories"].forEach((id) => {
+                const dom = document.getElementById(id);
+                if (dom && typeof echarts !== "undefined") {
+                    echarts.getInstanceByDom(dom)?.resize();
+                }
+            });
+        },
+        readHomepageSearchStateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const categoryName = (params.get("category") || "").trim();
+            const legacyCategoryId = (params.get("categoryId") || "").trim();
+            return {
+                keyword: (params.get("keyword") || "").trim(),
+                categoryName: categoryName || this.resolveCategoryName(legacyCategoryId)
+            };
+        },
+        syncHomepageSearchStateToUrl() {
+            const url = new URL(window.location.href);
+            const keyword = this.appliedHomeSearchQuery.trim();
+            const categoryName = this.appliedCategoryFilter ? String(this.appliedCategoryFilter) : "";
+
+            if (keyword) {
+                url.searchParams.set("keyword", keyword);
+            } else {
+                url.searchParams.delete("keyword");
+            }
+
+            url.searchParams.delete("categoryId");
+            if (categoryName) {
+                url.searchParams.set("category", categoryName);
+            } else {
+                url.searchParams.delete("category");
+            }
+
+            const nextSearch = url.searchParams.toString();
+            const nextUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ""}${url.hash}`;
+            window.history.replaceState({}, "", nextUrl);
+        },
+        cacheDefaultHomepagePosts(posts) {
+            this.defaultHomepagePostsCache = clone(posts);
+            this.hasDefaultHomepagePostsCache = true;
+        },
+        applyHomepageSearchState(keyword, categoryName) {
+            this.appliedHomeSearchQuery = (keyword || "").trim();
+            this.appliedCategoryFilter = categoryName ? String(categoryName).trim() : "";
+        },
+        normaliseHomepagePosts(items = []) {
+            return items.map((post, index) => {
+                const summary = normaliseSummary(post, index);
+                return {
+                    ...summary,
+                    categoryId: summary.categoryId || this.resolveCategoryId(summary.categoryName)
+                };
+            });
+        },
+        resetPostPagination() {
+            this.currentPostPage = 1;
+        },
+        ensurePostPageInRange() {
+            this.currentPostPage = Math.min(Math.max(Number(this.currentPostPage) || 1, 1), this.totalPostPages);
+        },
+        previousPostPage() {
+            this.goToPostPage(this.currentPostPage - 1);
+        },
+        nextPostPage() {
+            this.goToPostPage(this.currentPostPage + 1);
+        },
+        goToPostPage(page) {
+            const nextPage = Math.min(Math.max(Number(page) || 1, 1), this.totalPostPages);
+            this.currentPostPage = nextPage;
+        },
+        async fetchHomepageData() {
+            this.errorMessage = "";
+            await this.fetchCategories();
+            const initialState = this.readHomepageSearchStateFromUrl();
+            this.homeSearchQuery = initialState.keyword;
+            this.selectedCategoryFilter = initialState.categoryName;
+            if (initialState.keyword || initialState.categoryName) {
+                await this.ensureDefaultHomepagePostsCache();
+            }
+            this.applyHomepageSearchState(initialState.keyword, initialState.categoryName);
+            await this.fetchPosts({ allowFallback: true });
+            window.addEventListener("resize", this.handleChartResize);
+        },
         async fetchCategories() {
             try {
                 const response = await fetch("/api/categories");
                 const payload = await response.json();
-                this.categories = mergeCategoriesWithFallback(payload.data || []);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load homepage categories.");
+                }
+                this.categories = normaliseCategories(payload.data);
             } catch (error) {
-                this.categories = mergeCategoriesWithFallback([]);
+                this.categories = buildFallbackCategories();
             } finally {
                 if (!this.selectedCategoryFocus && this.categories.length) {
-                    this.selectedCategoryFocus = this.categories[0].name;
+                    this.selectedCategoryFocus = String(this.categories[0].id);
                 }
             }
         },
-        async fetchPosts() {
-            this.loading = true;
+        async fetchPosts(options = {}) {
+            const {
+                allowFallback = false,
+                showGlobalLoading = true,
+                useHomepageSearchLoading = false
+            } = options;
+            const params = new URLSearchParams();
+            const keyword = this.homeSearchQuery.trim();
+            const categoryName = this.selectedCategoryFilter ? String(this.selectedCategoryFilter).trim() : "";
+            if (keyword) {
+                params.set("keyword", keyword);
+            }
+            if (categoryName) {
+                params.set("category", categoryName);
+            }
+            const query = params.toString();
+            const requestSequence = ++this.homepageRequestSequence;
+            this.latestHomepageRequestSequence = requestSequence;
+            const isDefaultRequest = !keyword && !categoryName;
+
+            this.applyHomepageSearchState(keyword, categoryName);
+            this.syncHomepageSearchStateToUrl();
+
+            if (showGlobalLoading) {
+                this.loading = true;
+            }
+            if (useHomepageSearchLoading) {
+                this.homepageSearchLoading = true;
+            }
+            this.errorMessage = "";
+            try {
+                const response = await fetch(`/api/posts${query ? `?${query}` : ""}`);
+                const payload = await response.json();
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load the homepage article feed.");
+                }
+                if (requestSequence !== this.latestHomepageRequestSequence) {
+                    return;
+                }
+                const normalisedPosts = this.normaliseHomepagePosts(payload.data);
+                this.posts = normalisedPosts;
+                this.ensurePostPageInRange();
+                if (isDefaultRequest) {
+                    this.cacheDefaultHomepagePosts(normalisedPosts);
+                }
+            } catch (error) {
+                if (requestSequence !== this.latestHomepageRequestSequence) {
+                    return;
+                }
+                if (allowFallback) {
+                    const fallbackPosts = this.normaliseHomepagePosts(buildFallbackSummaries());
+                    this.posts = fallbackPosts;
+                    this.ensurePostPageInRange();
+                    if (isDefaultRequest) {
+                        this.cacheDefaultHomepagePosts(fallbackPosts);
+                    }
+                    this.showError("The live homepage feed is unavailable, so the front-end demo content is being shown instead.");
+                } else {
+                    this.posts = [];
+                    this.ensurePostPageInRange();
+                    this.showError(error.message || "Unable to load the homepage article feed.");
+                }
+            } finally {
+                if (requestSequence === this.latestHomepageRequestSequence) {
+                    if (showGlobalLoading) {
+                        this.loading = false;
+                    }
+                    if (useHomepageSearchLoading) {
+                        this.homepageSearchLoading = false;
+                    }
+                }
+            }
+        },
+        async ensureDefaultHomepagePostsCache() {
+            if (this.hasDefaultHomepagePostsCache) {
+                return;
+            }
+
             try {
                 const response = await fetch("/api/posts");
                 const payload = await response.json();
-                this.posts = mergePostsWithFallback(payload.data || []);
+                if (!response.ok || !payload?.success || !Array.isArray(payload.data)) {
+                    throw new Error(this.translateBackendMessage(payload?.message) || "Unable to load the default homepage article feed.");
+                }
+                this.cacheDefaultHomepagePosts(this.normaliseHomepagePosts(payload.data));
             } catch (error) {
-                this.posts = mergePostsWithFallback([]);
-                this.showError("The live feed is unavailable, so the front-end demo content is being shown instead.");
-            } finally {
-                this.loading = false;
+                this.cacheDefaultHomepagePosts(this.normaliseHomepagePosts(buildFallbackSummaries()));
+            }
+        },
+        async triggerHomepageSearch() {
+            const nextKeyword = this.homeSearchQuery.trim();
+            const nextCategoryName = this.selectedCategoryFilter ? String(this.selectedCategoryFilter).trim() : "";
+
+            this.resetPostPagination();
+            this.applyHomepageSearchState(nextKeyword, nextCategoryName);
+            this.syncHomepageSearchStateToUrl();
+
+            await this.fetchPosts({
+                allowFallback: !nextKeyword && !nextCategoryName,
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
+        },
+        async handleHomepageSearchEnter() {
+            await this.triggerHomepageSearch();
+        },
+        async fetchMyProfile() {
+            if (!this.currentUser) {
+                return;
+            }
+            const data = await this.request("/api/my/profile", {
+                method: "GET"
+            }, "", null, true);
+            if (data) {
+                this.mergeCurrentUserProfile(data);
             }
         },
         async fetchMyPosts() {
@@ -994,9 +1703,7 @@ createApp({
                 return;
             }
             const params = new URLSearchParams();
-            if (this.adminContributorApplicationStatusFilter) {
-                params.set("status", this.adminContributorApplicationStatusFilter);
-            }
+            params.set("status", "PENDING");
             if (this.adminContributorApplicationSortBy) {
                 params.set("sortBy", this.adminContributorApplicationSortBy);
             }
@@ -1016,6 +1723,10 @@ createApp({
         async fetchAdminUsers() {
             if (!this.isAdmin) {
                 this.adminUsers = [];
+                this.adminUserTotalElements = 0;
+                this.adminUserTotalPages = 0;
+                this.adminUserHasPrevious = false;
+                this.adminUserHasNext = false;
                 return;
             }
             const params = new URLSearchParams();
@@ -1025,12 +1736,43 @@ createApp({
             if (this.adminUserRoleFilter) {
                 params.set("role", this.adminUserRoleFilter);
             }
+            if (this.adminUserActiveFilter === "active") {
+                params.set("active", "true");
+            } else if (this.adminUserActiveFilter === "inactive") {
+                params.set("active", "false");
+            }
+            params.set("page", String(this.adminUserPage));
+            params.set("size", String(this.adminUserSize));
             const query = params.toString();
-            const data = await this.request(`/api/admin/users${query ? `?${query}` : ""}`, {
-                method: "GET"
-            }, "", null, true);
-            if (Array.isArray(data)) {
+            this.errorMessage = "";
+            try {
+                const response = await fetch(`/api/admin/users${query ? `?${query}` : ""}`, {
+                    method: "GET",
+                    headers: this.authHeaders()
+                });
+                const payload = await response.json();
+                if (!payload.success) {
+                    throw new Error(this.translateBackendMessage(payload.message) || "The request could not be completed.");
+                }
+                const data = Array.isArray(payload.data) ? payload.data : [];
+                const totalElements = Number(response.headers.get("X-Total-Elements") || data.length || 0);
+                const totalPages = Number(response.headers.get("X-Total-Pages") || (data.length ? 1 : 0));
+                const hasPrevious = (response.headers.get("X-Has-Previous") || "false") === "true";
+                const hasNext = (response.headers.get("X-Has-Next") || "false") === "true";
+
+                if (this.adminUserPage > 0 && !data.length && totalElements > 0) {
+                    this.adminUserPage -= 1;
+                    await this.fetchAdminUsers();
+                    return;
+                }
+
                 this.adminUsers = data;
+                this.adminUserTotalElements = totalElements;
+                this.adminUserTotalPages = totalPages;
+                this.adminUserHasPrevious = hasPrevious;
+                this.adminUserHasNext = hasNext;
+            } catch (error) {
+                this.showError(error.message || "The request could not be completed.");
             }
         },
         async searchAdminPosts() {
@@ -1064,12 +1806,33 @@ createApp({
             await this.fetchAdminPosts();
         },
         async searchAdminUsers() {
+            this.adminUserPage = 0;
             await this.fetchAdminUsers();
         },
         async clearAdminUserSearch() {
             this.adminUserQuery = "";
             this.adminUserRoleFilter = "";
             this.adminUserActiveFilter = "";
+            this.adminUserPage = 0;
+            this.adminUserSize = 10;
+            await this.fetchAdminUsers();
+        },
+        async goToPreviousAdminUserPage() {
+            if (!this.adminUserHasPrevious || this.adminUserPage <= 0) {
+                return;
+            }
+            this.adminUserPage -= 1;
+            await this.fetchAdminUsers();
+        },
+        async goToNextAdminUserPage() {
+            if (!this.adminUserHasNext) {
+                return;
+            }
+            this.adminUserPage += 1;
+            await this.fetchAdminUsers();
+        },
+        async changeAdminUserSize() {
+            this.adminUserPage = 0;
             await this.fetchAdminUsers();
         },
         async searchAdminContributorApplications() {
@@ -1077,13 +1840,13 @@ createApp({
         },
         async clearAdminContributorApplications() {
             this.adminContributorApplicationQuery = "";
-            this.adminContributorApplicationStatusFilter = "";
             await this.fetchAdminContributorApplications();
         },
         clearMyContributorApplicationFilter() {
             this.myContributorApplicationStatusFilter = "";
         },
         async refreshWorkspaceData() {
+            await this.fetchMyProfile();
             await this.fetchMyPosts();
             await this.fetchMyContributorApplications();
             if (this.isAdmin) {
@@ -1092,6 +1855,7 @@ createApp({
                 await this.fetchPendingQueue();
                 await this.fetchAdminContributorApplications();
             }
+            this.ensureAccessibleProfileSection();
         },
         async refreshAdminViews() {
             if (!this.isAdmin) {
@@ -1103,11 +1867,27 @@ createApp({
             if (this.adminSection === "articles" || this.selectedAdminPostId) {
                 await this.fetchAdminPosts();
             }
+            if (this.adminSection === "contributor-review") {
+                await this.fetchAdminContributorApplications();
+            }
         },
         async openPost(postId) {
+            const postInCache = this.defaultHomepagePostsCache.find((post) => post.id === postId);
+            if (postInCache) {
+                postInCache.viewCount = Number(postInCache.viewCount || 0) + 1;
+            }
+
+            const postInList = this.posts.find((post) => post.id === postId);
+            if (postInList) {
+                postInList.viewCount = Number(postInList.viewCount || 0) + 1;
+            }
+
             if (fallbackPostDetails[postId]) {
+                fallbackPostDetails[postId].viewCount = Number(fallbackPostDetails[postId].viewCount || 0) + 1;
                 this.selectedPost = normaliseDetail(clone(fallbackPostDetails[postId]));
+                this.selectedPost.likedByCurrentUser = this.isPostLiked(postId);
                 this.selectedPostId = postId;
+                this.currentCommentPage = 1;
                 this.currentView = "detail";
                 if (window.location.hash !== `#detail-${postId}`) {
                     window.location.hash = `#detail-${postId}`;
@@ -1118,13 +1898,17 @@ createApp({
             this.loading = true;
             this.errorMessage = "";
             try {
-                const response = await fetch(`/api/posts/${postId}`);
+                const response = await fetch(`/api/posts/${postId}`, {
+                    headers: this.currentUser ? this.authHeaders() : {}
+                });
                 const payload = await response.json();
                 if (!payload.success) {
                     throw new Error(this.translateBackendMessage(payload.message) || "Unable to load this article.");
                 }
                 this.selectedPost = normaliseDetail(payload.data);
+                this.setStoredLike(postId, Boolean(this.selectedPost.likedByCurrentUser));
                 this.selectedPostId = postId;
+                this.currentCommentPage = 1;
                 this.currentView = "detail";
                 if (window.location.hash !== `#detail-${postId}`) {
                     window.location.hash = `#detail-${postId}`;
@@ -1134,11 +1918,13 @@ createApp({
                 if (summary) {
                     this.selectedPost = normaliseDetail({
                         ...summary,
+                        likedByCurrentUser: this.isPostLiked(postId),
                         content: "This article is available in the front-end preview, but the live detail endpoint is not currently returning a full payload.",
                         imageUrls: summary.coverImageUrl ? [summary.coverImageUrl] : [],
                         comments: []
                     });
                     this.selectedPostId = postId;
+                    this.currentCommentPage = 1;
                     this.currentView = "detail";
                     if (window.location.hash !== `#detail-${postId}`) {
                         window.location.hash = `#detail-${postId}`;
@@ -1150,15 +1936,82 @@ createApp({
                 this.loading = false;
             }
         },
-        inspectCategory(categoryName) {
-            this.selectedCategoryFocus = categoryName;
-            this.selectedCategoryFilter = categoryName;
+        async likePost() {
+            if (!this.selectedPostId) {
+                this.showError("Please open an article before liking.");
+                return;
+            }
+            if (this.likeRequestPending) {
+                return;
+            }
+            if (!this.currentUser) {
+                this.redirectGuestToRegister("Sign in before liking articles.");
+                return;
+            }
+
+            this.likeRequestPending = true;
+            if (fallbackPostDetails[this.selectedPostId]) {
+                const liked = !this.selectedPostLiked;
+                this.selectedPost.likeCount = Math.max(0, Number(this.selectedPost.likeCount || 0) + (liked ? 1 : -1));
+                this.selectedPost.likedByCurrentUser = liked;
+                fallbackPostDetails[this.selectedPostId].likeCount = this.selectedPost.likeCount;
+                this.setStoredLike(this.selectedPostId, liked);
+                this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
+                this.likeRequestPending = false;
+                return;
+            }
+
+            try {
+                const data = await this.request(`/api/posts/${this.selectedPostId}/like`, {
+                    method: "POST"
+                }, "", null, true);
+
+                if (data) {
+                    this.selectedPost = normaliseDetail(data);
+                    const liked = Boolean(this.selectedPost.likedByCurrentUser);
+                    this.setStoredLike(this.selectedPostId, liked);
+                    const postInCache = this.defaultHomepagePostsCache.find((post) => post.id === this.selectedPostId);
+                    if (postInCache) {
+                        postInCache.likeCount = data.likeCount;
+                        postInCache.likedByCurrentUser = liked;
+                    }
+
+                    const postInList = this.posts.find((post) => post.id === this.selectedPostId);
+                    if (postInList) {
+                        postInList.likeCount = data.likeCount;
+                        postInList.likedByCurrentUser = liked;
+                    }
+
+                    this.showSuccess(liked ? "Article liked successfully." : "Article like removed.");
+                }
+            } finally {
+                this.likeRequestPending = false;
+            }
+        },
+        async inspectCategory(categoryName) {
+            const resolvedCategoryName = this.resolveCategoryName(categoryName);
+            const resolvedCategoryId = this.resolveCategoryId(resolvedCategoryName);
+            this.selectedCategoryFocus = resolvedCategoryId;
+            this.selectedCategoryFilter = resolvedCategoryName;
+            this.resetPostPagination();
             this.navigate("home");
+            await this.fetchPosts({
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
             this.scrollToCollections();
         },
-        applyCategoryToSearch(categoryName) {
-            this.selectedCategoryFilter = categoryName;
+        async applyCategoryToSearch(categoryName) {
+            const resolvedCategoryName = this.resolveCategoryName(categoryName);
+            const resolvedCategoryId = this.resolveCategoryId(resolvedCategoryName);
+            this.selectedCategoryFocus = resolvedCategoryId;
+            this.selectedCategoryFilter = resolvedCategoryName;
+            this.resetPostPagination();
             this.navigate("home");
+            await this.fetchPosts({
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
         },
         focusCollections(shouldNavigate = true) {
             if (shouldNavigate) {
@@ -1195,10 +2048,24 @@ createApp({
         clearHomeSearch() {
             this.homeSearchQuery = "";
             this.selectedCategoryFilter = "";
+            this.resetPostPagination();
+            this.applyHomepageSearchState("", "");
+            this.syncHomepageSearchStateToUrl();
+            this.errorMessage = "";
+            return this.fetchPosts({
+                allowFallback: true,
+                showGlobalLoading: false,
+                useHomepageSearchLoading: true
+            });
         },
         async selectProfileSection(section) {
+            if (!this.canAccessContributorWorkspace && ["published", "pending", "drafts"].includes(section)) {
+                this.profileSection = "liked";
+                return;
+            }
             this.profileSection = section;
             if (this.currentUser) {
+                await this.fetchMyProfile();
                 await this.fetchMyPosts();
                 await this.fetchMyContributorApplications();
             }
@@ -1207,12 +2074,15 @@ createApp({
             this.adminSection = section;
             if (section !== "articles") {
                 this.pendingQueueReturnToApprovals = false;
+                this.closeAdminPostPreview();
             }
             if (this.isAdmin && section === "articles") {
                 await this.fetchAdminPosts();
             }
             if (this.isAdmin && section === "users") {
                 await this.fetchAdminUsers();
+            }
+            if (this.isAdmin && section === "contributor-review") {
                 await this.fetchAdminContributorApplications();
             }
             if (this.isAdmin && section === "approvals") {
@@ -1220,8 +2090,20 @@ createApp({
             }
         },
         resolveCategoryId(categoryName) {
-            const match = this.categories.find((category) => category.name === categoryName);
+            const value = categoryName == null ? "" : String(categoryName);
+            const match = this.categories.find((category) => category.name === value || String(category.id) === value)
+                || this.categoryStats.find((category) => category.name === value || String(category.id) === value);
             return match ? String(match.id) : "";
+        },
+        resolveCategoryName(categoryValue) {
+            const value = categoryValue == null ? "" : String(categoryValue).trim();
+            if (!value) {
+                return "";
+            }
+
+            const match = this.categories.find((category) => category.name === value || String(category.id) === value)
+                || this.categoryStats.find((category) => category.name === value || String(category.id) === value);
+            return match?.name || value;
         },
         storeDraftSnapshot(post) {
             if (!post?.id) {
@@ -1307,6 +2189,22 @@ createApp({
                 this.adminReviewReason = data.rejectReason || "";
             }
         },
+        async openAdminPostPreview(postId) {
+            const data = await this.request(`/api/admin/posts/${postId}`, {
+                method: "GET"
+            }, "", null, true);
+            if (data) {
+                this.adminPreviewPostId = postId;
+                this.adminPreviewPost = data;
+                this.syncBodyScrollLock();
+            }
+        },
+        closeAdminPostPreview() {
+            this.closeImagePreview();
+            this.adminPreviewPostId = null;
+            this.adminPreviewPost = null;
+            this.syncBodyScrollLock();
+        },
         async submitPermissionRequest() {
             console.log("=== submitPermissionRequest called ===");
             console.log("currentUser:", this.currentUser);
@@ -1315,12 +2213,12 @@ createApp({
             
             if (!this.currentUser) {
                 console.error("User not logged in!");
-                this.showError("请先登录");
+                this.showError("Please sign in again before continuing.");
                 return;
             }
             
             if (!this.contributorApplicationForm.applicationReason.trim()) {
-                this.showError("申请理由不能为空");
+                this.showError("Application reason cannot be empty.");
                 return;
             }
 
@@ -1352,7 +2250,9 @@ createApp({
             const file = event.target.files[0];
             if (file) {
                 if (file.type !== "application/pdf") {
-                    this.showError("只支持PDF格式的附件");
+                    this.showError("Only PDF attachments are supported.");
+                    this.contributorApplicationForm.attachment = null;
+                    this.attachmentFileLabel = "No file selected";
                     event.target.value = "";
                     return;
                 }
@@ -1415,6 +2315,9 @@ createApp({
             }, "Signed in successfully.", async (data) => {
                 this.currentUser = data;
                 this.storeUser(data);
+                this.syncProfileFormFromCurrentUser();
+                this.syncLikedPostsFromStorage();
+                this.ensureAccessibleProfileSection();
                 this.authBanner = "";
                 this.loginForm = { username: "", password: "" };
                 await this.refreshWorkspaceData();
@@ -1427,7 +2330,9 @@ createApp({
             this.selectedPost = null;
             this.selectedAdminPostId = null;
             this.selectedAdminPost = null;
+            this.closeAdminPostPreview();
             this.profileSection = "published";
+            this.profileEditingMode = "";
             this.adminSection = "articles";
             this.pendingQueueQuery = "";
             this.pendingQueueReturnToApprovals = false;
@@ -1435,20 +2340,88 @@ createApp({
             this.contributorApplications = [];
             this.adminPosts = [];
             this.adminUsers = [];
+            this.adminUserPage = 0;
+            this.adminUserSize = 10;
+            this.adminUserTotalElements = 0;
+            this.adminUserTotalPages = 0;
+            this.adminUserHasPrevious = false;
+            this.adminUserHasNext = false;
             this.pendingQueuePosts = [];
             this.adminContributorApplications = [];
             this.workspaceDrafts = [];
             this.workspacePending = [];
+            this.likedPostIds = [];
             this.authBanner = "";
             this.resetPostEditor();
             localStorage.removeItem("heritage-current-user");
             this.navigate("home");
             this.showSuccess("You have been signed out.");
         },
+        async saveProfile() {
+            if (!this.currentUser) {
+                this.redirectGuestToRegister("Sign in before viewing your profile.");
+                return;
+            }
+
+            const nickname = String(this.profileForm.nickname || "").trim();
+            if (!nickname) {
+                this.showError("Display name cannot be empty.");
+                return;
+            }
+
+            if (this.profileBioByteCount > 500) {
+                this.showError("Personal bio cannot exceed 500 bytes.");
+                return;
+            }
+
+            const data = await this.request("/api/my/profile", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    nickname,
+                    avatarUrl: this.normaliseOptionalField(this.profileForm.avatarUrl),
+                    bio: this.normaliseOptionalField(this.profileForm.bio)
+                })
+            }, "Profile updated successfully.", null, true);
+
+            if (data) {
+                this.mergeCurrentUserProfile(data);
+                this.closeProfileEditor();
+            }
+        },
+        clearProfileAvatar() {
+            this.profileForm.avatarUrl = "";
+            this.profileAvatarFileLabel = "No file selected";
+        },
+        async handleProfileAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                this.profileAvatarFileLabel = "No file selected";
+                return;
+            }
+
+            this.profileAvatarFileLabel = file.name;
+            const result = await this.uploadProfileAvatar(file);
+            if (result) {
+                this.profileForm.avatarUrl = result.url;
+                this.currentUser = {
+                    ...this.currentUser,
+                    avatarUrl: result.url
+                };
+                this.storeUser(this.currentUser);
+                this.profileEditingMode = "profile";
+            }
+            event.target.value = "";
+        },
         async submitPost() {
             if (!this.currentUser) {
                 this.showError("Please sign in before saving a draft.");
                 this.navigate("auth");
+                return;
+            }
+            const postValidationError = this.validatePostForm();
+            if (postValidationError) {
+                this.showError(postValidationError);
                 return;
             }
 
@@ -1518,7 +2491,14 @@ createApp({
                 this.commentForm.content = "";
                 await this.fetchPosts();
                 await this.openPost(this.selectedPostId);
+                this.currentCommentPage = 1;
             }
+        },
+        previousCommentPage() {
+            this.currentCommentPage = Math.max(1, this.currentCommentPage - 1);
+        },
+        nextCommentPage() {
+            this.currentCommentPage = Math.min(this.totalCommentPages, this.currentCommentPage + 1);
         },
         async handleCoverUpload(event) {
             const file = event.target.files[0];
@@ -1557,14 +2537,34 @@ createApp({
                     headers: this.authHeaders(),
                     body: formData
                 });
-                const payload = await response.json();
+                const payload = await this.readJsonSafely(response);
                 if (!payload.success) {
-                    throw new Error(this.translateBackendMessage(payload.message) || "Image upload failed.");
+                    throw new Error(this.resolveUploadErrorMessage(payload?.message, "Image upload failed."));
                 }
                 this.showSuccess(`Image uploaded: ${payload.data.fileName}`);
                 return payload.data;
             } catch (error) {
-                this.showError(error.message || "Image upload failed.");
+                this.showError(this.resolveUploadErrorMessage(error?.message, "Image upload failed."));
+                return null;
+            }
+        },
+        async uploadProfileAvatar(file) {
+            const formData = new FormData();
+            formData.append("file", file);
+            try {
+                const response = await fetch("/api/uploads/profile-avatar", {
+                    method: "POST",
+                    headers: this.authHeaders(),
+                    body: formData
+                });
+                const payload = await this.readJsonSafely(response);
+                if (!payload.success) {
+                    throw new Error(this.resolveUploadErrorMessage(payload?.message, "Avatar upload failed."));
+                }
+                this.showSuccess(`Avatar uploaded: ${payload.data.fileName}`);
+                return payload.data;
+            } catch (error) {
+                this.showError(this.resolveUploadErrorMessage(error?.message, "Avatar upload failed."));
                 return null;
             }
         },
@@ -1748,28 +2748,10 @@ createApp({
                 return null;
             }
         },
-        matchesSearch(post, query) {
-            const fields = [
-                post.title,
-                this.translateText(post.title),
-                post.heritageName,
-                this.translateHeritageName(post.heritageName),
-                post.region,
-                this.translateRegion(post.region),
-                post.authorName,
-                this.translateNickname(post.authorName),
-                post.categoryName,
-                this.translateCategory(post.categoryName)
-            ];
-
-            return fields
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase()
-                .includes(query);
-        },
         buildHeatScore(post) {
-            return Number(post.likeCount || 0) * 3 + Number(post.favoriteCount || 0) * 2 + Number(post.commentCount || 0) * 4;
+            const views = Number(post.viewCount || 0);
+            const comments = Number(post.commentCount || 0);
+            return Math.round((views * 0.8) + (comments * 0.2));
         },
         statusLabel(status) {
             const mapping = {
@@ -1879,15 +2861,37 @@ createApp({
                 day: "2-digit"
             });
         },
+        hasRealCover(url) {
+            return Boolean(String(url || "").trim());
+        },
+        coverCategoryLabel(categoryName) {
+            return this.translateCategory(categoryName || "Traditional Craftsmanship");
+        },
+        getDefaultCoverTheme(categoryName) {
+            const label = this.coverCategoryLabel(categoryName);
+            return defaultCoverThemeMap[label] || defaultCoverThemeMap.__default;
+        },
+        buildDefaultCoverStyle(categoryName) {
+            const theme = this.getDefaultCoverTheme(categoryName);
+            return {
+                "--cover-primary": theme.primary,
+                "--cover-secondary": theme.secondary,
+                "--cover-accent": theme.accent,
+                "--cover-outline": theme.outline
+            };
+        },
+        coverSurfaceStyle(coverImageUrl, categoryName) {
+            if (this.hasRealCover(coverImageUrl)) {
+                return { backgroundImage: this.buildCover(coverImageUrl) };
+            }
+            return this.buildDefaultCoverStyle(categoryName);
+        },
         buildCover(url) {
             const asset = this.resolveAsset(url);
             return asset ? `linear-gradient(rgba(43, 28, 19, 0.18), rgba(43, 28, 19, 0.18)), url('${asset}')` : "none";
         },
         resolveAsset(url) {
-            if (!url) {
-                return "https://images.unsplash.com/photo-1518998053901-5348d3961a04?auto=format&fit=crop&w=1200&q=80";
-            }
-            return url;
+            return url || "";
         },
         userInitials(value) {
             if (!value) {
@@ -1935,9 +2939,52 @@ createApp({
             }
             return backendMessageMap[message] || message;
         },
+        async readJsonSafely(response) {
+            try {
+                return await response.json();
+            } catch (error) {
+                return {
+                    success: false,
+                    message: response.status === 413 || response.status === 400
+                        ? "Image exceeds the 10MB size limit."
+                        : ""
+                };
+            }
+        },
+        resolveUploadErrorMessage(message, fallbackMessage) {
+            const translated = this.translateBackendMessage(message);
+            if (translated) {
+                return translated;
+            }
+            if (typeof message === "string" && message.toLowerCase().includes("10mb")) {
+                return "Image exceeds the 10MB size limit.";
+            }
+            return fallbackMessage;
+        },
         normaliseOptionalField(value) {
             const trimmed = String(value || "").trim();
             return trimmed ? trimmed : null;
+        },
+        countBytes(value) {
+            return new TextEncoder().encode(String(value || "")).length;
+        },
+        validatePostForm() {
+            const title = String(this.postForm.title || "").trim();
+            const content = String(this.postForm.content || "");
+
+            if (!title) {
+                return "A title is required.";
+            }
+            if (this.countBytes(title) > 150) {
+                return "Title cannot exceed 150 UTF-8 bytes.";
+            }
+            if (!content.trim()) {
+                return "Story text cannot be empty.";
+            }
+            if (this.countBytes(content) > 60000) {
+                return "Story text cannot exceed 60000 UTF-8 bytes.";
+            }
+            return "";
         },
         validateRegisterForm() {
             const username = this.registerForm.username.trim();
@@ -1987,6 +3034,94 @@ createApp({
         },
         storeUser(user) {
             localStorage.setItem("heritage-current-user", JSON.stringify(user));
+        },
+        renderCharts() {
+            this.renderPostLineChart();
+            this.renderCommentLineChart();
+            this.renderCategoryPieChart();
+        },
+        renderPostLineChart() {
+            const chartDom = document.getElementById("chart-posts");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const dateCounts = {};
+            this.defaultHomepagePostsCache.forEach((post) => {
+                const date = String(post.createdAt || "").substring(0, 10);
+                if (date) {
+                    dateCounts[date] = (dateCounts[date] || 0) + 1;
+                }
+            });
+            const sortedDates = Object.keys(dateCounts).sort();
+            const data = sortedDates.map((date) => dateCounts[date]);
+
+            myChart.setOption({
+                title: { text: "Daily Published Stories", left: "center", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" } },
+                tooltip: { trigger: "axis" },
+                grid: { top: 54, right: 22, bottom: 36, left: 42 },
+                xAxis: { type: "category", data: sortedDates },
+                yAxis: { type: "value", minInterval: 1 },
+                series: [{ data, type: "line", smooth: true, itemStyle: { color: "#8f4b2f" } }]
+            });
+        },
+        renderCommentLineChart() {
+            const chartDom = document.getElementById("chart-comments");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const dateCounts = {};
+            this.defaultHomepagePostsCache.forEach((post) => {
+                const date = String(post.createdAt || "").substring(0, 10);
+                if (date) {
+                    dateCounts[date] = (dateCounts[date] || 0) + Number(post.commentCount || 0);
+                }
+            });
+            const sortedDates = Object.keys(dateCounts).sort();
+            const data = sortedDates.map((date) => dateCounts[date]);
+
+            myChart.setOption({
+                title: { text: "Discussion Activity Trends", left: "center", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" } },
+                tooltip: { trigger: "axis" },
+                grid: { top: 54, right: 22, bottom: 36, left: 42 },
+                xAxis: { type: "category", data: sortedDates },
+                yAxis: { type: "value", minInterval: 1 },
+                series: [{ data, type: "line", smooth: true, itemStyle: { color: "#6d7561" } }]
+            });
+        },
+        renderCategoryPieChart() {
+            const chartDom = document.getElementById("chart-categories");
+            if (!chartDom || typeof echarts === "undefined") {
+                return;
+            }
+            const myChart = echarts.init(chartDom);
+            const pieData = this.categoryStats.filter((stat) => stat.count > 0).map((stat) => ({
+                name: this.translateCategory(stat.name),
+                value: stat.count
+            }));
+
+            myChart.setOption({
+                color: ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"],
+                title: { text: "Collections Distribution", textStyle: { fontSize: 14, fontFamily: "Cormorant Garamond" }, left: "center" },
+                tooltip: { trigger: "item" },
+                legend: {
+                    orient: "vertical",
+                    right: 4,
+                    top: 54,
+                    bottom: 8,
+                    textStyle: { fontSize: 11 },
+                    itemWidth: 12,
+                    itemHeight: 8
+                },
+                series: [{
+                    type: "pie",
+                    radius: ["34%", "62%"],
+                    center: ["36%", "56%"],
+                    itemStyle: { borderRadius: 5, borderColor: "#fff", borderWidth: 2 },
+                    data: pieData
+                }]
+            });
         }
     }
 }).mount("#app");

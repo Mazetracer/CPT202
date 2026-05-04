@@ -60,17 +60,17 @@ public class MyContributorApplicationController {
             request = objectMapper.readValue(requestJson, CreateContributorApplicationRequest.class);
         } catch (Exception e) {
             logger.error("Failed to parse request JSON", e);
-            return ApiResponse.failure("请求格式错误");
+            return ApiResponse.failure("The request format is invalid.");
         }
             
         String attachmentPath = null;
         if (attachment != null && !attachment.isEmpty()) {
             if (!attachment.getContentType().equals("application/pdf")) {
-                return ApiResponse.failure("只支持PDF格式的附件");
+                return ApiResponse.failure("Only PDF attachments are supported.");
             }
             attachmentPath = saveAttachment(attachment);
         }
-        return ApiResponse.success("贡献者申请提交成功", contributorApplicationService.createApplication(request.applicationReason(), attachmentPath));
+        return ApiResponse.success("Contributor application submitted successfully.", contributorApplicationService.createApplication(request.applicationReason(), attachmentPath));
     }
 
     private String saveAttachment(MultipartFile file) throws IOException {

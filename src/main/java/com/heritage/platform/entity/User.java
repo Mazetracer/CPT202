@@ -43,15 +43,23 @@ public class User extends BaseTimeEntity {
     @Column(length = 20)
     private String phone;
 
+    @Column(length = 2000)
+    private String bio;
+
     protected User() {
     }
 
     public User(String username, String passwordHash, String nickname, String avatarUrl, UserRole role, Boolean active) {
-        this(username, passwordHash, nickname, avatarUrl, role, active, null, null);
+        this(username, passwordHash, nickname, avatarUrl, role, active, null, null, null);
     }
 
     public User(String username, String passwordHash, String nickname, String avatarUrl, UserRole role, Boolean active,
                 String email, String phone) {
+        this(username, passwordHash, nickname, avatarUrl, role, active, email, phone, null);
+    }
+
+    public User(String username, String passwordHash, String nickname, String avatarUrl, UserRole role, Boolean active,
+                String email, String phone, String bio) {
         this.username = username;
         this.passwordHash = passwordHash;
         this.nickname = nickname;
@@ -60,6 +68,7 @@ public class User extends BaseTimeEntity {
         this.active = active == null ? Boolean.TRUE : active;
         this.email = email;
         this.phone = phone;
+        this.bio = bio;
     }
 
     public Long getId() {
@@ -96,6 +105,16 @@ public class User extends BaseTimeEntity {
 
     public String getPhone() {
         return phone;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void updateProfile(String nickname, String avatarUrl, String bio) {
+        this.nickname = nickname;
+        this.avatarUrl = avatarUrl;
+        this.bio = bio;
     }
 
     public void changeRole(UserRole role) {

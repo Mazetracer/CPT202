@@ -30,6 +30,6 @@ public class CategoryController {
 
     @PostMapping
     public ApiResponse<CategoryResponse> create(@Valid @RequestBody CategoryCreateRequest request) {
-        return ApiResponse.success("分类创建成功", categoryService.create(request));
+        return ApiResponse.success("Collection created successfully.", categoryService.create(request));
     }
 }

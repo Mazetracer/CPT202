@@ -29,18 +29,18 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
-            throw new BadRequestException("用户名已存在");
+            throw new BadRequestException("This username is already in use.");
         }
 
         String email = normalizeOptional(request.email());
         String phone = normalizeOptional(request.phone());
 
         if (email != null && userRepository.existsByEmail(email)) {
-            throw new BadRequestException("邮箱已被注册");
+            throw new BadRequestException("This email address is already registered.");
         }
 
         if (phone != null && userRepository.existsByPhone(phone)) {
-            throw new BadRequestException("手机号已被注册");
+            throw new BadRequestException("This phone number is already registered.");
         }
 
         User user = userRepository.save(new User(
@@ -60,14 +60,14 @@ public class AuthService {
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.username())
-                .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The user could not be found."));
 
         if (!Boolean.TRUE.equals(user.getActive())) {
-            throw new BadRequestException("账号已被禁用");
+            throw new BadRequestException("This account has been disabled.");
         }
 
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new BadRequestException("用户名或密码错误");
+            throw new BadRequestException("The username or password is incorrect.");
         }
 
         return toResponse(user);
@@ -79,6 +79,7 @@ public class AuthService {
                 user.getId(),
                 user.getUsername(),
                 user.getNickname(),
+                user.getAvatarUrl(),
                 user.getRole(),
                 token,
                 user.getEmail(),

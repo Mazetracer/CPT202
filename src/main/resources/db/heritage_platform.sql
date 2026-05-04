@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS posts (
     like_count INT NOT NULL DEFAULT 0,
     favorite_count INT NOT NULL DEFAULT 0,
     comment_count INT NOT NULL DEFAULT 0,
+    view_count INT NOT NULL DEFAULT 0,
     author_id BIGINT NOT NULL,
     category_id BIGINT NOT NULL,
     reviewed_by BIGINT,
@@ -68,6 +69,17 @@ CREATE TABLE IF NOT EXISTS comments (
     updated_at DATETIME NOT NULL,
     CONSTRAINT fk_comments_author FOREIGN KEY (author_id) REFERENCES users(id),
     CONSTRAINT fk_comments_post FOREIGN KEY (post_id) REFERENCES posts(id)
+);
+
+CREATE TABLE IF NOT EXISTS post_likes (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    post_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT uk_post_likes_user_post UNIQUE (user_id, post_id),
+    CONSTRAINT fk_post_likes_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_post_likes_post FOREIGN KEY (post_id) REFERENCES posts(id)
 );
 
 CREATE TABLE IF NOT EXISTS contributor_applications (

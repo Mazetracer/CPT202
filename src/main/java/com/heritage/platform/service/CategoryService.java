@@ -23,7 +23,7 @@ public class CategoryService {
     @Transactional
     public CategoryResponse create(CategoryCreateRequest request) {
         if (categoryRepository.existsByName(request.name())) {
-            throw new BadRequestException("分类名称已存在");
+            throw new BadRequestException("This collection name already exists.");
         }
 
         Category category = categoryRepository.save(Category.create(request.name(), request.description()));
@@ -40,7 +40,7 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public Category getById(Long id) {
         return categoryRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("分类不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The collection could not be found."));
     }
 
     private CategoryResponse toResponse(Category category) {

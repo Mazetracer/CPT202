@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -30,8 +31,11 @@ public class PostController {
     }
 
     @GetMapping
-    public ApiResponse<List<PostSummaryResponse>> listAll() {
-        return ApiResponse.success(postService.listAll());
+    public ApiResponse<List<PostSummaryResponse>> listAll(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category
+    ) {
+        return ApiResponse.success(postService.listAll(keyword, category));
     }
 
     @GetMapping("/{postId}")
@@ -41,7 +45,7 @@ public class PostController {
 
     @PostMapping
     public ApiResponse<PostDetailResponse> create(@Valid @RequestBody PostCreateRequest request) {
-        return ApiResponse.success("草稿创建成功", postService.create(request));
+        return ApiResponse.success("Draft created successfully.", postService.create(request));
     }
 
     @PutMapping("/{postId}")
@@ -49,12 +53,17 @@ public class PostController {
             @PathVariable Long postId,
             @Valid @RequestBody PostUpdateRequest request
     ) {
-        return ApiResponse.success("文章更新成功", postService.update(postId, request));
+        return ApiResponse.success("Article updated successfully.", postService.update(postId, request));
     }
 
     @PostMapping("/{postId}/submit-review")
     public ApiResponse<PostDetailResponse> submitForReview(@PathVariable Long postId) {
-        return ApiResponse.success("文章已提交审核", postService.submitForReview(postId));
+        return ApiResponse.success("Article submitted for review successfully.", postService.submitForReview(postId));
+    }
+
+    @PostMapping("/{postId}/like")
+    public ApiResponse<PostDetailResponse> likePost(@PathVariable Long postId) {
+        return ApiResponse.success("Article liked successfully.", postService.likePost(postId));
     }
 
     @PostMapping("/{postId}/comments")
@@ -62,6 +71,6 @@ public class PostController {
             @PathVariable Long postId,
             @Valid @RequestBody CommentCreateRequest request
     ) {
-        return ApiResponse.success("评论发布成功", postService.addComment(postId, request));
+        return ApiResponse.success("Comment posted successfully.", postService.addComment(postId, request));
     }
 }

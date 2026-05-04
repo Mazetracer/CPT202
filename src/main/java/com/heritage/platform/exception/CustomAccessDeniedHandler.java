@@ -22,7 +22,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        ApiResponse<Void> apiResponse = ApiResponse.failure("仅管理员可执行该操作");
+        ApiResponse<Void> apiResponse = ApiResponse.failure("Only administrators can perform this action.");
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
     }
 }

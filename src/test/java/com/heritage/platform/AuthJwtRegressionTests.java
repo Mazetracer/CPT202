@@ -104,7 +104,7 @@ class AuthJwtRegressionTests {
                         ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("登录成功"))
+                .andExpect(jsonPath("$.message").value("Signed in successfully."))
                 .andExpect(jsonPath("$.data.id").isNumber())
                 .andExpect(jsonPath("$.data.username").value(username))
                 .andExpect(jsonPath("$.data.nickname").value(nickname))
@@ -178,7 +178,7 @@ class AuthJwtRegressionTests {
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("账号已被禁用"));
+                .andExpect(jsonPath("$.message").value("This account has been disabled."));
     }
 
     private Post createPublishedPost(User author) {

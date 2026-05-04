@@ -42,11 +42,11 @@ public class ContributorApplicationService {
         User currentUser = authContextService.requireActiveUser();
 
         if (currentUser.getRole() != UserRole.USER) {
-            throw new BadRequestException("当前角色无需申请贡献者权限");
+            throw new BadRequestException("Your current role does not require a contributor application.");
         }
 
         if (contributorApplicationRepository.existsByApplicantIdAndStatus(currentUser.getId(), ContributorApplicationStatus.PENDING)) {
-            throw new BadRequestException("已有待处理的贡献者申请");
+            throw new BadRequestException("You already have a pending contributor application.");
         }
 
         ContributorApplication application = contributorApplicationRepository.save(ContributorApplication.create(currentUser, applicationReason, attachmentPath));
@@ -79,13 +79,13 @@ public class ContributorApplicationService {
     public AdminContributorApplicationResponse approve(Long applicationId) {
         User admin = authContextService.requireAdmin();
         ContributorApplication application = contributorApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new ResourceNotFoundException("申请不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The application could not be found."));
 
         if (application.getStatus() != ContributorApplicationStatus.PENDING) {
-            throw new BadRequestException("仅待处理申请可审批");
+            throw new BadRequestException("Only pending applications can be reviewed.");
         }
         if (application.getApplicant().getRole() != UserRole.USER) {
-            throw new BadRequestException("申请人当前角色不允许审批此申请");
+            throw new BadRequestException("This application can no longer be reviewed because the applicant role has changed.");
         }
 
         application.getApplicant().changeRole(UserRole.CONTRIBUTOR);
@@ -97,13 +97,13 @@ public class ContributorApplicationService {
     public AdminContributorApplicationResponse reject(Long applicationId, AdminContributorApplicationRejectRequest request) {
         User admin = authContextService.requireAdmin();
         ContributorApplication application = contributorApplicationRepository.findById(applicationId)
-                .orElseThrow(() -> new ResourceNotFoundException("申请不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The application could not be found."));
 
         if (application.getStatus() != ContributorApplicationStatus.PENDING) {
-            throw new BadRequestException("仅待处理申请可审批");
+            throw new BadRequestException("Only pending applications can be reviewed.");
         }
         if (application.getApplicant().getRole() != UserRole.USER) {
-            throw new BadRequestException("申请人当前角色不允许审批此申请");
+            throw new BadRequestException("This application can no longer be reviewed because the applicant role has changed.");
         }
 
         application.reject(admin, request.reason().trim());

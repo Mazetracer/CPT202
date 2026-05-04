@@ -4,10 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record AdminPostReviewRequest(
-        @NotBlank(message = "审核动作不能为空")
+        @NotBlank(message = "Review action cannot be empty.")
         String action,
 
-        @Size(max = 255, message = "驳回原因不能超过255个字符")
+        @Size(max = 255, message = "Rejection reason cannot exceed 255 characters.")
         String reason
 ) {
 }

@@ -5,23 +5,23 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
-        @NotBlank(message = "用户名不能为空")
-        @Size(min = 4, max = 50, message = "用户名长度需要在4到50之间")
+        @NotBlank(message = "Username cannot be empty.")
+        @Size(min = 4, max = 50, message = "Username must be between 4 and 50 characters.")
         String username,
 
-        @NotBlank(message = "密码不能为空")
-        @Size(min = 6, max = 30, message = "密码长度需要在6到30之间")
+        @NotBlank(message = "Password cannot be empty.")
+        @Size(min = 6, max = 30, message = "Password must be between 6 and 30 characters.")
         String password,
 
-        @NotBlank(message = "昵称不能为空")
-        @Size(max = 50, message = "昵称不能超过50个字符")
+        @NotBlank(message = "Display name cannot be empty.")
+        @Size(max = 50, message = "Display name cannot exceed 50 characters.")
         String nickname,
 
-        @Email(message = "邮箱格式不正确")
-        @Size(max = 100, message = "邮箱不能超过100个字符")
+        @Email(message = "Please enter a valid email address.")
+        @Size(max = 100, message = "Email cannot exceed 100 characters.")
         String email,
 
-        @Size(max = 20, message = "手机号不能超过20个字符")
+        @Size(max = 20, message = "Phone number cannot exceed 20 characters.")
         String phone
 ) {
 }

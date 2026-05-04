@@ -4,7 +4,7 @@ import com.heritage.platform.enums.UserRole;
 import jakarta.validation.constraints.NotNull;
 
 public record AdminUserRoleUpdateRequest(
-        @NotNull(message = "目标角色不能为空")
+        @NotNull(message = "Please choose a target role.")
         UserRole role
 ) {
 }

@@ -3,7 +3,6 @@ package com.heritage.platform.service;
 import com.heritage.platform.common.BadRequestException;
 import com.heritage.platform.dto.response.UploadResponse;
 import jakarta.annotation.PostConstruct;
-import com.heritage.platform.service.AuthContextService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -33,11 +32,20 @@ public class UploadService {
 
     public UploadResponse uploadImage(MultipartFile file) {
         authContextService.requireContributor();
+        return storeImage(file);
+    }
+
+    public UploadResponse uploadProfileAvatar(MultipartFile file) {
+        authContextService.requireActiveUser();
+        return storeImage(file);
+    }
+
+    private UploadResponse storeImage(MultipartFile file) {
         if (file.isEmpty()) {
-            throw new BadRequestException("上传文件不能为空");
+            throw new BadRequestException("Uploaded file cannot be empty.");
         }
         if (file.getContentType() == null || !file.getContentType().startsWith("image/")) {
-            throw new BadRequestException("只允许上传图片文件");
+            throw new BadRequestException("Only image files can be uploaded.");
         }
 
         String extension = extractExtension(file.getOriginalFilename());
@@ -47,7 +55,7 @@ public class UploadService {
         try {
             Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException ex) {
-            throw new BadRequestException("图片保存失败: " + ex.getMessage());
+            throw new BadRequestException("Image could not be saved: " + ex.getMessage());
         }
 
         return new UploadResponse(generatedName, "/uploads/" + generatedName);

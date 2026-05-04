@@ -3,12 +3,17 @@ package com.heritage.platform.service;
 import com.heritage.platform.common.BadRequestException;
 import com.heritage.platform.common.ResourceNotFoundException;
 import com.heritage.platform.dto.request.AdminUserRoleUpdateRequest;
+import com.heritage.platform.dto.response.AdminUserPageResult;
 import com.heritage.platform.dto.response.AdminUserSummaryResponse;
 import com.heritage.platform.entity.User;
 import com.heritage.platform.enums.PostStatus;
 import com.heritage.platform.enums.UserRole;
 import com.heritage.platform.repository.PostRepository;
 import com.heritage.platform.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,24 +37,44 @@ public class AdminUserService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminUserSummaryResponse> listUsers(String username, UserRole role) {
+    public List<AdminUserSummaryResponse> listUsers(String username, UserRole role, Boolean active) {
         authContextService.requireAdmin();
 
         String trimmedUsername = username == null ? "" : username.trim();
-        boolean hasUsername = !trimmedUsername.isEmpty();
-
-        List<User> users;
-        if (role != null && hasUsername) {
-            users = userRepository.findAllByRoleAndUsernameContainingIgnoreCaseOrderByUpdatedAtDesc(role, trimmedUsername);
-        } else if (role != null) {
-            users = userRepository.findAllByRoleOrderByUpdatedAtDesc(role);
-        } else if (hasUsername) {
-            users = userRepository.findAllByUsernameContainingIgnoreCaseOrderByUpdatedAtDesc(trimmedUsername);
-        } else {
-            users = userRepository.findAllByOrderByUpdatedAtDesc();
-        }
+        List<User> users = userRepository.searchAdminUsers(trimmedUsername, role, active);
 
         return users.stream().map(this::toSummary).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AdminUserPageResult listUsersPage(String username, UserRole role, Boolean active, Integer page, Integer size) {
+        authContextService.requireAdmin();
+
+        String trimmedUsername = username == null ? "" : username.trim();
+        int pageNumber = page == null ? 0 : page;
+        int pageSize = size == null ? 10 : size;
+        if (pageNumber < 0) {
+            pageNumber = 0;
+        }
+        if (pageSize <= 0) {
+            pageSize = 10;
+        }
+        if (pageSize > 50) {
+            pageSize = 50;
+        }
+
+        Pageable pageable = PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        Page<User> users = userRepository.searchAdminUsers(trimmedUsername, role, active, pageable);
+
+        return new AdminUserPageResult(
+                users.getContent().stream().map(this::toSummary).toList(),
+                users.getNumber(),
+                users.getSize(),
+                users.getTotalElements(),
+                users.getTotalPages(),
+                users.hasPrevious(),
+                users.hasNext()
+        );
     }
 
     @Transactional
@@ -59,21 +84,21 @@ public class AdminUserService {
         User user = findUser(userId);
 
         if (user.getRole() == UserRole.ADMIN) {
-            throw new BadRequestException("不能修改管理员角色");
+            throw new BadRequestException("Administrator roles cannot be changed.");
         }
 
         if (request.role() == UserRole.ADMIN) {
-            throw new BadRequestException("不支持将用户设置为管理员");
+            throw new BadRequestException("Users cannot be promoted to administrator here.");
         }
 
         if (request.role() == user.getRole()) {
-            throw new BadRequestException("当前角色无需调整");
+            throw new BadRequestException("This user already has that role.");
         }
 
         boolean validTransition = (user.getRole() == UserRole.USER && request.role() == UserRole.CONTRIBUTOR)
                 || (user.getRole() == UserRole.CONTRIBUTOR && request.role() == UserRole.USER);
         if (!validTransition) {
-            throw new BadRequestException("仅支持在普通用户与贡献者之间调整角色");
+            throw new BadRequestException("Only USER and CONTRIBUTOR roles can be adjusted here.");
         }
 
         user.changeRole(request.role());
@@ -87,7 +112,7 @@ public class AdminUserService {
         validateManageableUserStatusTarget(user, false);
 
         if (Boolean.TRUE.equals(user.getActive())) {
-            throw new BadRequestException("用户当前已启用");
+            throw new BadRequestException("This user account is already active.");
         }
 
         user.activate();
@@ -100,13 +125,13 @@ public class AdminUserService {
         User user = findUser(userId);
 
         if (admin.getId().equals(user.getId())) {
-            throw new BadRequestException("不能停用当前登录管理员");
+            throw new BadRequestException("You cannot deactivate the administrator account that is currently signed in.");
         }
 
         validateManageableUserStatusTarget(user, true);
 
         if (!Boolean.TRUE.equals(user.getActive())) {
-            throw new BadRequestException("用户当前已停用");
+            throw new BadRequestException("This user account is already inactive.");
         }
 
         user.deactivate();
@@ -115,12 +140,14 @@ public class AdminUserService {
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("用户不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The user could not be found."));
     }
 
     private void validateManageableUserStatusTarget(User user, boolean deactivating) {
         if (user.getRole() == UserRole.ADMIN) {
-            throw new BadRequestException(deactivating ? "不能停用管理员账号" : "不能启用管理员账号");
+            throw new BadRequestException(deactivating
+                    ? "Administrator accounts cannot be deactivated."
+                    : "Administrator accounts cannot be activated here.");
         }
     }
 

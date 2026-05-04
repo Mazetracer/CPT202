@@ -1,9 +1,12 @@
 package com.heritage.platform;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.heritage.platform.common.ApiResponse;
+import com.heritage.platform.config.GlobalExceptionHandler;
 import com.heritage.platform.entity.Category;
 import com.heritage.platform.entity.ContributorApplication;
 import com.heritage.platform.entity.Post;
+import com.heritage.platform.entity.PostImage;
 import com.heritage.platform.entity.User;
 import com.heritage.platform.enums.ContributorApplicationStatus;
 import com.heritage.platform.enums.PostStatus;
@@ -20,14 +23,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -153,7 +160,7 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(get("/api/my/posts/{postId}", otherUsersPost.getId()), authorA))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("文章不存在"));
+                .andExpect(jsonPath("$.message").value("The article could not be found."));
     }
 
     @Test
@@ -215,7 +222,40 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(multipart("/api/uploads/images").file(image), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅投稿用户可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only contributors can perform this action."));
+    }
+
+    @Test
+    void multipartSizeLimitExceptionReturnsClearImageTooLargeMessage() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleMultipartUpload(
+                new MaxUploadSizeExceededException(10 * 1024 * 1024L)
+        );
+
+        assertThat(response.getStatusCode().value()).isEqualTo(400);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().success()).isFalse();
+        assertThat(response.getBody().message()).isEqualTo("Image exceeds the 10MB size limit.");
+    }
+
+    @Test
+    void uploadEndpointsStillAcceptValidImageFiles() throws Exception {
+        User contributor = userRepository.save(new User("upload-contributor", "hash", "Upload Contributor", null, UserRole.CONTRIBUTOR, true));
+        MockMultipartFile image = new MockMultipartFile("file", "cover.jpg", MediaType.IMAGE_JPEG_VALUE, "image".getBytes());
+        MockMultipartFile avatar = new MockMultipartFile("file", "avatar.jpg", MediaType.IMAGE_JPEG_VALUE, "avatar".getBytes());
+
+        mockMvc.perform(authorRequest(multipart("/api/uploads/images").file(image), contributor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fileName").isNotEmpty())
+                .andExpect(jsonPath("$.data.url").isNotEmpty());
+
+        mockMvc.perform(authorRequest(multipart("/api/uploads/profile-avatar").file(avatar), authorA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.fileName").isNotEmpty())
+                .andExpect(jsonPath("$.data.url").isNotEmpty());
     }
 
     @Test
@@ -246,13 +286,76 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(updatePayload("Should fail"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅草稿或已驳回文章可编辑"));
+                .andExpect(jsonPath("$.message").value("Only draft or rejected articles can be edited."));
 
         mockMvc.perform(authorRequest(put("/api/posts/{postId}", otherUserDraft.getId()), authorA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updatePayload("Should be hidden"))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void createDraft_enforcesUtf8ByteLimitsForTitleAndContent() throws Exception {
+        User contributor = userRepository.save(new User("contributor-byte", "hash", "Contributor Byte", null, UserRole.CONTRIBUTOR, true));
+
+        mockMvc.perform(authorRequest(post("/api/posts"), contributor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createPayload(repeatUtf8("汉", 50), repeatUtf8("汉", 20000)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.title").value(repeatUtf8("汉", 50)))
+                .andExpect(jsonPath("$.data.content").value(repeatUtf8("汉", 20000)));
+
+        mockMvc.perform(authorRequest(post("/api/posts"), contributor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createPayload(repeatUtf8("汉", 51), "Draft content"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Title cannot exceed 150 UTF-8 bytes."));
+
+        mockMvc.perform(authorRequest(post("/api/posts"), contributor)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createPayload("Mixed title", repeatUtf8("汉", 20001)))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Story text cannot exceed 60000 UTF-8 bytes."));
+    }
+
+    @Test
+    void updateDraft_enforcesUtf8ByteLimitsForTitleAndContent() throws Exception {
+        Post draft = createPost(authorA, PostStatus.DRAFT);
+
+        mockMvc.perform(authorRequest(put("/api/posts/{postId}", draft.getId()), authorA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updatePayload(
+                                repeatUtf8("汉", 50),
+                                repeatUtf8("汉", 20000)
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.title").value(repeatUtf8("汉", 50)))
+                .andExpect(jsonPath("$.data.content").value(repeatUtf8("汉", 20000)));
+
+        mockMvc.perform(authorRequest(put("/api/posts/{postId}", draft.getId()), authorA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updatePayload(
+                                repeatUtf8("中A", 38) + "中",
+                                "Updated content"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Title cannot exceed 150 UTF-8 bytes."));
+
+        mockMvc.perform(authorRequest(put("/api/posts/{postId}", draft.getId()), authorA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updatePayload(
+                                "Updated title",
+                                repeatUtf8("汉", 20001)
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Story text cannot exceed 60000 UTF-8 bytes."));
     }
 
     @Test
@@ -281,7 +384,7 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(post("/api/posts/{postId}/submit-review", published.getId()), authorA))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("当前文章状态不允许提交审核"));
+                .andExpect(jsonPath("$.message").value("This article cannot be submitted for review right now."));
 
         mockMvc.perform(authorRequest(post("/api/posts/{postId}/submit-review", otherUserDraft.getId()), authorA))
                 .andExpect(status().isNotFound())
@@ -311,7 +414,7 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(reviewPayload("APPROVE", ""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅待审核文章可执行审核操作"));
+                .andExpect(jsonPath("$.message").value("Only pending review articles can be reviewed."));
 
         Post anotherPending = createPost(authorA, PostStatus.PENDING_REVIEW);
         mockMvc.perform(adminRequest(post("/api/admin/posts/{postId}/review", anotherPending.getId()))
@@ -334,7 +437,7 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(reviewPayload("REJECT", ""))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("驳回原因不能为空"));
+                .andExpect(jsonPath("$.message").value("Please provide a rejection reason."));
     }
 
     @Test
@@ -355,7 +458,7 @@ class PostReviewFlowApiTests {
         mockMvc.perform(adminRequest(post("/api/admin/posts/{postId}/archive", rejected.getId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅已发布文章可归档"));
+                .andExpect(jsonPath("$.message").value("Only published articles can be archived."));
     }
 
     @Test
@@ -377,7 +480,29 @@ class PostReviewFlowApiTests {
         mockMvc.perform(adminRequest(post("/api/admin/posts/{postId}/restore", draft.getId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅已归档文章可恢复发布"));
+                .andExpect(jsonPath("$.message").value("Only archived articles can be restored."));
+    }
+
+    @Test
+    void adminCanViewPostDetailIncludingCoverAndGalleryImages() throws Exception {
+        Post pending = createPost(authorA, PostStatus.PENDING_REVIEW);
+        pending.replaceImages(List.of(
+                PostImage.create("https://example.com/gallery-1.jpg", "Gallery image 1", 0, pending),
+                PostImage.create("https://example.com/gallery-2.jpg", "Gallery image 2", 1, pending)
+        ));
+        postRepository.saveAndFlush(pending);
+
+        mockMvc.perform(adminRequest(get("/api/admin/posts/{postId}", pending.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(pending.getId()))
+                .andExpect(jsonPath("$.data.title").value(pending.getTitle()))
+                .andExpect(jsonPath("$.data.content").value(pending.getContent()))
+                .andExpect(jsonPath("$.data.coverImageUrl").value(pending.getCoverImageUrl()))
+                .andExpect(jsonPath("$.data.imageUrls").isArray())
+                .andExpect(jsonPath("$.data.imageUrls.length()").value(2))
+                .andExpect(jsonPath("$.data.imageUrls[0]").value("https://example.com/gallery-1.jpg"))
+                .andExpect(jsonPath("$.data.imageUrls[1]").value("https://example.com/gallery-2.jpg"));
     }
 
     @Test
@@ -387,29 +512,29 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(get("/api/admin/posts"), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(get("/api/admin/posts/{postId}", pending.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/posts/{postId}/review", pending.getId()), authorA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(reviewPayload("APPROVE", ""))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/posts/{postId}/archive", pending.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/posts/{postId}/restore", pending.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
     }
 
     @Test
@@ -558,6 +683,58 @@ class PostReviewFlowApiTests {
     }
 
     @Test
+    void adminCanListUsersWithPaginationAndActiveFilter() throws Exception {
+        User activeUser = userRepository.save(new User("paged-user-active", "hash", "Paged Active", null, UserRole.USER, true));
+        userRepository.save(new User("paged-user-inactive", "hash", "Paged Inactive", null, UserRole.USER, false));
+
+        mockMvc.perform(adminRequest(get("/api/admin/users")
+                        .param("username", "paged-user")
+                        .param("role", "USER")
+                        .param("active", "true")
+                        .param("page", "0")
+                        .param("size", "1")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Page", "0"))
+                .andExpect(header().string("X-Size", "1"))
+                .andExpect(header().string("X-Total-Elements", "1"))
+                .andExpect(header().string("X-Total-Pages", "1"))
+                .andExpect(header().string("X-Has-Previous", "false"))
+                .andExpect(header().string("X-Has-Next", "false"))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(activeUser.getId()))
+                .andExpect(jsonPath("$.data[0].username").value("paged-user-active"))
+                .andExpect(jsonPath("$.data[0].active").value(true));
+
+        mockMvc.perform(adminRequest(get("/api/admin/users")
+                        .param("username", "paged-user")
+                        .param("role", "USER")
+                        .param("active", "false")
+                        .param("page", "0")
+                        .param("size", "10")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Total-Elements", "1"))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].username").value("paged-user-inactive"))
+                .andExpect(jsonPath("$.data[0].active").value(false));
+
+        mockMvc.perform(adminRequest(get("/api/admin/users")
+                        .param("username", "paged-user-active")
+                        .param("role", "USER")
+                        .param("active", "true")
+                        .param("page", "1")
+                        .param("size", "1")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Page", "1"))
+                .andExpect(header().string("X-Total-Elements", "1"))
+                .andExpect(header().string("X-Has-Previous", "true"))
+                .andExpect(header().string("X-Has-Next", "false"))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
     void adminCanUpdateUserRoleBetweenUserAndContributorOnly() throws Exception {
         mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/role", authorA.getId()))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -581,14 +758,14 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(payload("role", "USER"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("不能修改管理员角色"));
+                .andExpect(jsonPath("$.message").value("Administrator roles cannot be changed."));
 
         mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/role", authorB.getId()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(payload("role", "ADMIN"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("不支持将用户设置为管理员"));
+                .andExpect(jsonPath("$.message").value("Users cannot be promoted to administrator here."));
     }
 
     @Test
@@ -671,7 +848,7 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(commentPayload("Inactive users should be blocked"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("账号已被禁用"));
+                .andExpect(jsonPath("$.message").value("This account has been disabled."));
 
         mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/activate", authorA.getId())))
                 .andExpect(status().isOk())
@@ -694,13 +871,13 @@ class PostReviewFlowApiTests {
         mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/deactivate", admin.getId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("不能停用当前登录管理员"));
+                .andExpect(jsonPath("$.message").value("You cannot deactivate the administrator account that is currently signed in."));
 
         User otherAdmin = userRepository.save(new User("admin-b", "hash", "Admin B", null, UserRole.ADMIN, true));
         mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/deactivate", otherAdmin.getId())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("不能停用管理员账号"));
+                .andExpect(jsonPath("$.message").value("Administrator accounts cannot be deactivated."));
     }
 
     @Test
@@ -708,24 +885,31 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(get("/api/admin/users"), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
+
+        mockMvc.perform(authorRequest(get("/api/admin/users")
+                        .param("page", "0")
+                        .param("size", "10"), authorA))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/users/{userId}/role", authorB.getId()), authorA)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(payload("role", "CONTRIBUTOR"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/users/{userId}/deactivate", authorB.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/users/{userId}/activate", authorB.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
     }
 
     @Test
@@ -755,7 +939,7 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(multipart("/api/my/contributor-applications").param("request", requestJson), authorA))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("已有待处理的贡献者申请"));
+                .andExpect(jsonPath("$.message").value("You already have a pending contributor application."));
     }
 
     @Test
@@ -770,13 +954,13 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(multipart("/api/my/contributor-applications").param("request", requestJson), contributor))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("当前角色无需申请贡献者权限"));
+                .andExpect(jsonPath("$.message").value("Your current role does not require a contributor application."));
 
         // 管理员申请（应该失败）
         mockMvc.perform(adminRequest(multipart("/api/my/contributor-applications").param("request", requestJson)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("当前角色无需申请贡献者权限"));
+                .andExpect(jsonPath("$.message").value("Your current role does not require a contributor application."));
     }
 
     @Test
@@ -802,7 +986,7 @@ class PostReviewFlowApiTests {
                         .content(objectMapper.writeValueAsString(payload("reason", "Application already approved"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅待处理申请可审批"));
+                .andExpect(jsonPath("$.message").value("Only pending applications can be reviewed."));
     }
 
     @Test
@@ -876,12 +1060,12 @@ class PostReviewFlowApiTests {
         mockMvc.perform(authorRequest(get("/api/admin/contributor-applications"), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
 
         mockMvc.perform(authorRequest(post("/api/admin/contributor-applications/{applicationId}/approve", pending.getId()), authorA))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").value("仅管理员可执行该操作"));
+                .andExpect(jsonPath("$.message").value("Only administrators can perform this action."));
     }
 
     private MockHttpServletRequestBuilder authorRequest(MockHttpServletRequestBuilder request, User user) {
@@ -936,9 +1120,13 @@ class PostReviewFlowApiTests {
     }
 
     private Object updatePayload(String title) {
+        return updatePayload(title, "Updated content");
+    }
+
+    private Object updatePayload(String title, String content) {
         return payload(
                 "title", title,
-                "content", "Updated content",
+                "content", content,
                 "categoryId", category.getId(),
                 "coverImageUrl", "https://example.com/new-cover.jpg",
                 "heritageName", "Updated heritage",
@@ -948,9 +1136,13 @@ class PostReviewFlowApiTests {
     }
 
     private Object createPayload(String title) {
+        return createPayload(title, "Draft content");
+    }
+
+    private Object createPayload(String title, String content) {
         return payload(
                 "title", title,
-                "content", "Draft content",
+                "content", content,
                 "categoryId", category.getId(),
                 "coverImageUrl", "https://example.com/cover.jpg",
                 "heritageName", "Heritage item",
@@ -972,5 +1164,11 @@ class PostReviewFlowApiTests {
             map.put(String.valueOf(keyValues[i]), keyValues[i + 1]);
         }
         return map;
+    }
+
+    private String repeatUtf8(String unit, int count) {
+        return IntStream.range(0, count)
+                .mapToObj(index -> unit)
+                .collect(Collectors.joining());
     }
 }

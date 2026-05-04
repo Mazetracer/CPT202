@@ -66,16 +66,16 @@ public class AdminPostController {
             @PathVariable Long postId,
             @Valid @RequestBody AdminPostReviewRequest request
     ) {
-        return ApiResponse.success("审核操作成功", adminPostService.review(postId, request));
+        return ApiResponse.success("Review action completed successfully.", adminPostService.review(postId, request));
     }
 
     @PostMapping("/{postId}/archive")
     public ApiResponse<AdminPostDetailResponse> archive(@PathVariable Long postId) {
-        return ApiResponse.success("文章归档成功", adminPostService.archive(postId));
+        return ApiResponse.success("Article archived successfully.", adminPostService.archive(postId));
     }
 
     @PostMapping("/{postId}/restore")
     public ApiResponse<AdminPostDetailResponse> restore(@PathVariable Long postId) {
-        return ApiResponse.success("文章恢复发布成功", adminPostService.restore(postId));
+        return ApiResponse.success("Article restored successfully.", adminPostService.restore(postId));
     }
 }

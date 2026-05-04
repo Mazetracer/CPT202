@@ -76,10 +76,10 @@ public class AdminPostService {
         int pageNumber = page == null ? 0 : page;
         int pageSize = size == null ? 10 : size;
         if (pageNumber < 0) {
-            throw new BadRequestException("页码不能小于0");
+            throw new BadRequestException("Page number cannot be less than 0.");
         }
         if (pageSize <= 0) {
-            throw new BadRequestException("每页数量必须大于0");
+            throw new BadRequestException("Page size must be greater than 0.");
         }
         if (pageSize > 50) {
             pageSize = 50;
@@ -115,7 +115,7 @@ public class AdminPostService {
     public AdminPostDetailResponse getDetail(Long postId) {
         authContextService.requireAdmin();
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
         return toDetail(post);
     }
 
@@ -123,10 +123,10 @@ public class AdminPostService {
     public AdminPostDetailResponse review(Long postId, AdminPostReviewRequest request) {
         User admin = authContextService.requireAdmin();
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
 
         if (post.getStatus() != PostStatus.PENDING_REVIEW) {
-            throw new BadRequestException("仅待审核文章可执行审核操作");
+            throw new BadRequestException("Only pending review articles can be reviewed.");
         }
 
         String action = request.action().trim().toUpperCase(Locale.ROOT);
@@ -134,11 +134,11 @@ public class AdminPostService {
             post.approve(admin);
         } else if ("REJECT".equals(action)) {
             if (request.reason() == null || request.reason().isBlank()) {
-                throw new BadRequestException("驳回原因不能为空");
+                throw new BadRequestException("Please provide a rejection reason.");
             }
             post.reject(admin, request.reason().trim());
         } else {
-            throw new BadRequestException("不支持的审核动作");
+            throw new BadRequestException("Unsupported review action.");
         }
 
         return toDetail(post);
@@ -148,10 +148,10 @@ public class AdminPostService {
     public AdminPostDetailResponse archive(Long postId) {
         User admin = authContextService.requireAdmin();
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
 
         if (post.getStatus() != PostStatus.PUBLISHED) {
-            throw new BadRequestException("仅已发布文章可归档");
+            throw new BadRequestException("Only published articles can be archived.");
         }
 
         post.archive(admin);
@@ -162,10 +162,10 @@ public class AdminPostService {
     public AdminPostDetailResponse restore(Long postId) {
         User admin = authContextService.requireAdmin();
         Post post = postRepository.findById(postId)
-                .orElseThrow(() -> new ResourceNotFoundException("文章不存在"));
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
 
         if (post.getStatus() != PostStatus.ARCHIVED) {
-            throw new BadRequestException("仅已归档文章可恢复发布");
+            throw new BadRequestException("Only archived articles can be restored.");
         }
 
         post.restore(admin);

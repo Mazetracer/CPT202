@@ -4,11 +4,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CategoryCreateRequest(
-        @NotBlank(message = "分类名称不能为空")
-        @Size(max = 100, message = "分类名称不能超过100个字符")
+        @NotBlank(message = "Collection name cannot be empty.")
+        @Size(max = 100, message = "Collection name cannot exceed 100 characters.")
         String name,
 
-        @Size(max = 255, message = "分类描述不能超过255个字符")
+        @Size(max = 255, message = "Collection description cannot exceed 255 characters.")
         String description
 ) {
 }

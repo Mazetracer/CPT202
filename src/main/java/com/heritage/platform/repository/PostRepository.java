@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +22,43 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusOrderByCreatedAtDesc(PostStatus status);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    @Query("""
+            select distinct p
+            from Post p
+            join p.author a
+            join p.category c
+            where p.status = :status
+              and (
+                    :keyword is null
+                    or :keyword = ''
+                    or lower(p.title) like lower(concat('%', :keyword, '%'))
+                    or lower(c.name) like lower(concat('%', :keyword, '%'))
+                    or lower(a.username) like lower(concat('%', :keyword, '%'))
+                    or lower(cast(p.content as string)) like lower(concat('%', :keyword, '%'))
+              )
+              and (
+                    :categoryName is null
+                    or :categoryName = ''
+                    or c.name = :categoryName
+              )
+            order by
+                case
+                    when :keyword is null or :keyword = '' then 5
+                    when lower(p.title) like lower(concat('%', :keyword, '%')) then 1
+                    when lower(c.name) like lower(concat('%', :keyword, '%')) then 2
+                    when lower(a.username) like lower(concat('%', :keyword, '%')) then 3
+                    when lower(cast(p.content as string)) like lower(concat('%', :keyword, '%')) then 4
+                    else 5
+                end,
+                p.createdAt desc
+            """)
+    List<Post> searchPublishedPosts(
+            @Param("status") PostStatus status,
+            @Param("keyword") String keyword,
+            @Param("categoryName") String categoryName
+    );
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusOrderByUpdatedAtDesc(PostStatus status);

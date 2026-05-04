@@ -36,7 +36,7 @@ public class AdminContributorApplicationController {
 
     @PostMapping("/{applicationId}/approve")
     public ApiResponse<AdminContributorApplicationResponse> approve(@PathVariable Long applicationId) {
-        return ApiResponse.success("贡献者申请已通过", contributorApplicationService.approve(applicationId));
+        return ApiResponse.success("Contributor application approved.", contributorApplicationService.approve(applicationId));
     }
 
     @PostMapping("/{applicationId}/reject")
@@ -44,6 +44,6 @@ public class AdminContributorApplicationController {
             @PathVariable Long applicationId,
             @Valid @RequestBody AdminContributorApplicationRejectRequest request
     ) {
-        return ApiResponse.success("贡献者申请已驳回", contributorApplicationService.reject(applicationId, request));
+        return ApiResponse.success("Contributor application rejected.", contributorApplicationService.reject(applicationId, request));
     }
 }
