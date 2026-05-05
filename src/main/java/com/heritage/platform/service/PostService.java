@@ -1,6 +1,7 @@
 package com.heritage.platform.service;
 
 import com.heritage.platform.common.BadRequestException;
+import com.heritage.platform.common.ForbiddenException;
 import com.heritage.platform.common.ResourceNotFoundException;
 import com.heritage.platform.dto.request.CommentCreateRequest;
 import com.heritage.platform.dto.request.PostCreateRequest;
@@ -15,6 +16,7 @@ import com.heritage.platform.entity.PostImage;
 import com.heritage.platform.entity.PostLike;
 import com.heritage.platform.entity.User;
 import com.heritage.platform.enums.PostStatus;
+import com.heritage.platform.enums.UserRole;
 import com.heritage.platform.repository.CommentRepository;
 import com.heritage.platform.repository.PostLikeRepository;
 import com.heritage.platform.repository.PostRepository;
@@ -188,6 +190,23 @@ public class PostService {
         );
     }
 
+    @Transactional
+    public void deleteComment(Long postId, Long commentId) {
+        User currentUser = authContextService.requireActiveUser();
+        Comment comment = commentRepository.findByIdAndPostId(commentId, postId)
+                .orElseThrow(() -> new ResourceNotFoundException("The comment could not be found."));
+
+        boolean isAuthor = comment.getAuthor().getId().equals(currentUser.getId());
+        boolean isAdmin = currentUser.getRole() == UserRole.ADMIN;
+        if (!isAuthor && !isAdmin) {
+            throw new ForbiddenException("Only the comment author or an administrator can delete this comment.");
+        }
+
+        Post post = comment.getPost();
+        commentRepository.delete(comment);
+        post.decreaseCommentCount();
+    }
+
     private List<PostImage> buildImages(Post post, List<String> imageUrls) {
         List<String> urls = imageUrls == null ? List.of() : imageUrls;
         List<PostImage> images = new ArrayList<>();
@@ -198,7 +217,7 @@ public class PostService {
     }
 
     private PostDetailResponse toDetail(Post post) {
-        List<CommentResponse> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(post.getId()).stream()
+        List<CommentResponse> comments = commentRepository.findByPostIdOrderByCreatedAtDesc(post.getId()).stream()
                 .map(comment -> new CommentResponse(
                         comment.getId(),
                         comment.getContent(),

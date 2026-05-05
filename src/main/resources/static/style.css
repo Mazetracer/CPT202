@@ -732,6 +732,10 @@ label textarea {
     line-height: 1.8;
 }
 
+.comment-delete-btn {
+    margin-top: 10px;
+}
+
 .comment-form {
     display: grid;
     gap: 12px;
