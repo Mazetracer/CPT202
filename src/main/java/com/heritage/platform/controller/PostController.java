@@ -9,6 +9,7 @@ import com.heritage.platform.dto.response.PostDetailResponse;
 import com.heritage.platform.dto.response.PostSummaryResponse;
 import com.heritage.platform.service.PostService;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -72,5 +73,14 @@ public class PostController {
             @Valid @RequestBody CommentCreateRequest request
     ) {
         return ApiResponse.success("Comment posted successfully.", postService.addComment(postId, request));
+    }
+
+    @DeleteMapping("/{postId}/comments/{commentId}")
+    public ApiResponse<Void> deleteComment(
+            @PathVariable Long postId,
+            @PathVariable Long commentId
+    ) {
+        postService.deleteComment(postId, commentId);
+        return ApiResponse.success("Comment deleted successfully.", null);
     }
 }

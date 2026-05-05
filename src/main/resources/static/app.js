@@ -1210,6 +1210,30 @@ createApp({
                 applyState(fallbackPostDetails[postId]);
             }
         },
+        applyPostCommentCount(postId, commentCount) {
+            const matchesPost = (post) => String(post?.id) === String(postId);
+            const nextCount = Math.max(0, Number(commentCount || 0));
+            const applyState = (post) => {
+                if (post) {
+                    post.commentCount = nextCount;
+                }
+            };
+
+            if (matchesPost(this.selectedPost)) {
+                applyState(this.selectedPost);
+            }
+            applyState(this.defaultHomepagePostsCache.find(matchesPost));
+            applyState(this.posts.find(matchesPost));
+            if (fallbackPostDetails[postId]) {
+                applyState(fallbackPostDetails[postId]);
+            }
+        },
+        canDeleteComment(comment) {
+            if (this.isAdmin) {
+                return Boolean(this.currentUser?.id && comment?.id);
+            }
+            return Boolean(this.currentUser?.id && comment?.authorId && String(comment.authorId) === String(this.currentUser.id));
+        },
         setStoredLike(postId, liked) {
             const key = this.currentLikedPostsKey();
             if (!key) {
@@ -2603,19 +2627,62 @@ createApp({
                 return;
             }
 
-            const data = await this.request(`/api/posts/${this.selectedPostId}/comments`, {
+            const content = String(this.commentForm.content || "").trim();
+            if (!content) {
+                this.showError("Comment content cannot be empty.");
+                return;
+            }
+
+            const postId = this.selectedPostId;
+            const data = await this.request(`/api/posts/${postId}/comments`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    content: this.commentForm.content
+                    content
                 })
             }, "Comment posted successfully.", null, true);
 
             if (data) {
                 this.commentForm.content = "";
-                await this.fetchPosts();
-                await this.openPost(this.selectedPostId);
+                if (!Array.isArray(this.selectedPost.comments)) {
+                    this.selectedPost.comments = [];
+                }
+                this.selectedPost.comments = [
+                    data,
+                    ...this.selectedPost.comments.filter((comment) => String(comment.id) !== String(data.id))
+                ];
+                this.applyPostCommentCount(postId, Number(this.selectedPost.commentCount || 0) + 1);
                 this.currentCommentPage = 1;
+            }
+        },
+        async deleteComment(comment) {
+            if (!this.currentUser) {
+                this.showError("Please sign in before deleting a comment.");
+                this.navigate("auth");
+                return;
+            }
+            if (!this.selectedPostId || !comment?.id) {
+                this.showError("Please open an article before deleting a comment.");
+                return;
+            }
+            if (!this.canDeleteComment(comment)) {
+                this.showError("You can only delete your own comments.");
+                return;
+            }
+
+            const postId = this.selectedPostId;
+            let deleted = false;
+            await this.request(`/api/posts/${postId}/comments/${comment.id}`, {
+                method: "DELETE"
+            }, "Comment deleted successfully.", () => {
+                deleted = true;
+            }, true);
+
+            if (deleted && this.selectedPost) {
+                const comments = Array.isArray(this.selectedPost.comments) ? this.selectedPost.comments : [];
+                this.selectedPost.comments = comments.filter((item) => String(item.id) !== String(comment.id));
+                this.applyPostCommentCount(postId, Number(this.selectedPost.commentCount || 0) - 1);
+                this.currentCommentPage = Math.min(this.currentCommentPage, this.totalCommentPages);
             }
         },
         previousCommentPage() {

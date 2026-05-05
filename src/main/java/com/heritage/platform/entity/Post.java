@@ -167,6 +167,10 @@ public class Post extends BaseTimeEntity {
         commentCount += 1;
     }
 
+    public void decreaseCommentCount() {
+        commentCount = Math.max(0, commentCount - 1);
+    }
+
     public void increaseViewCount() {
         viewCount += 1;
     }

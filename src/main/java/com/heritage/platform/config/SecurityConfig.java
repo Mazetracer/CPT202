@@ -45,6 +45,7 @@ public class SecurityConfig {
                         "/api/posts/*/comments",
                         "/api/posts/*/like"
                 ).authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/posts/*/comments/*").authenticated()
                 .requestMatchers("/api/my/**", "/api/uploads/**").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().permitAll()

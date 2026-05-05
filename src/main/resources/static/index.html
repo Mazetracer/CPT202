@@ -317,6 +317,14 @@
                                 <strong>{{ translateNickname(comment.authorNickname) }}</strong>
                                 <span>{{ formatDate(comment.createdAt) }}</span>
                                 <p>{{ translateText(comment.content) }}</p>
+                                <button
+                                    v-if="canDeleteComment(comment)"
+                                    class="ghost-btn small comment-delete-btn"
+                                    type="button"
+                                    @click="deleteComment(comment)"
+                                >
+                                    Delete
+                                </button>
                             </div>
                         </div>
                         <p v-else class="muted">No comments yet.</p>
