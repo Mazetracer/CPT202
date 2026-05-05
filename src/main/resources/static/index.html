@@ -6,10 +6,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Heritage Exchange Platform</title>
+    <title>Culture Realm</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -17,9 +17,11 @@
     <header class="topbar">
         <div class="container topbar__inner">
             <button class="brand" type="button" @click="navigate('home')">
-                <span class="brand__crest">H</span>
+                <span class="brand__crest">
+                    <img src="/images/default-covers/brand-image.png" alt="Culture Realm logo" class="brand__crest-image">
+                </span>
                 <span>
-                    <strong>Heritage Exchange</strong>
+                    <strong>Culture Realm</strong>
                     <small>Stories, craft, and memory</small>
                 </span>
             </button>
@@ -60,20 +62,20 @@
         <div class="hero__texture"></div>
         <div class="container hero__grid">
             <div class="hero__copy">
-                <p class="eyebrow">Living Heritage Archive</p>
-                <h1>Build a richer front-end archive for essays, collections, and editorial workflows.</h1>
+                <p class="eyebrow">COMMUNITY HERITAGE SHARING PLATFORM</p>
+                <h1>Share Heritage Stories, Preserve Cultural Memory.</h1>
                 <p class="hero__text">
-                    This version centers on the public archive search, article reading, a personal workspace,
-                    and a lightweight administrator console.
+                    Discover local traditions, old photographs, handmade crafts, community memories, and cultural
+                    resources shared by contributors and reviewed by curators.
                 </p>
             </div>
 
             <aside class="hero__card card">
-                <p class="eyebrow">Platform Snapshot</p>
-                <h2>A front-end structure ready for richer course project demos.</h2>
+                <p class="eyebrow">ABOUT THIS PLATFORM</p>
+                <h2>A shared space for culture, memory, and community heritage.</h2>
                 <p>
-                    The interface now includes a searchable homepage, draft desk,
-                    personal workspace, article detail view, and an administrator workspace.
+                    Heritage Exchange helps people publish, review, search, and read approved cultural heritage
+                    resources in one calm and trustworthy digital archive.
                 </p>
                 <div class="hero__stats">
                     <div>
@@ -786,7 +788,6 @@
                                 <option value="PUBLISHED">Published</option>
                                 <option value="REJECTED">Rejected</option>
                                 <option value="ARCHIVED">Archived</option>
-                                <option value="DRAFT">Draft</option>
                             </select>
                             <select v-model="adminSortOption">
                                 <option value="UPDATED_DESC">Recently updated</option>
@@ -1059,7 +1060,7 @@
                                 ></textarea>
                             </label>
                             <p v-if="entry.rejectReason" class="mt-2"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
-                            <div class="request-actions mt-2">
+                            <div class="request-actions mt-2 contributor-review__actions">
                                 <button v-if="entry.status === 'PENDING'" class="primary-btn small" type="button" @click="approveContributorApplication(entry.id)">Approve</button>
                                 <button v-if="entry.status === 'PENDING'" class="ghost-btn small" type="button" @click="rejectContributorApplication(entry.id)">Reject</button>
                             </div>

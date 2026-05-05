@@ -25,15 +25,18 @@ public class AdminUserService {
     private final UserRepository userRepository;
     private final PostRepository postRepository;
     private final AuthContextService authContextService;
+    private final ContributorApplicationService contributorApplicationService;
 
     public AdminUserService(
             UserRepository userRepository,
             PostRepository postRepository,
-            AuthContextService authContextService
+            AuthContextService authContextService,
+            ContributorApplicationService contributorApplicationService
     ) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.authContextService = authContextService;
+        this.contributorApplicationService = contributorApplicationService;
     }
 
     @Transactional(readOnly = true)
@@ -79,7 +82,7 @@ public class AdminUserService {
 
     @Transactional
     public AdminUserSummaryResponse updateRole(Long userId, AdminUserRoleUpdateRequest request) {
-        authContextService.requireAdmin();
+        User admin = authContextService.requireAdmin();
 
         User user = findUser(userId);
 
@@ -102,6 +105,9 @@ public class AdminUserService {
         }
 
         user.changeRole(request.role());
+        if (request.role() == UserRole.CONTRIBUTOR) {
+            contributorApplicationService.approvePendingApplicationsForApplicant(user, admin);
+        }
         return toSummary(user);
     }
 
