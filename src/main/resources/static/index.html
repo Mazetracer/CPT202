@@ -199,7 +199,14 @@
 
                 <div v-if="paginatedPosts.length" class="post-grid">
                     <article v-for="post in paginatedPosts" :key="post.id" class="post-card card">
-                        <div class="post-card__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(post) }" :style="coverSurfaceStyle(post)">
+                        <div class="post-card__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(post), 'cover-surface--uploaded': hasPostProvidedCover(post) }" :style="coverSurfaceStyle(post)">
+                            <img
+                                v-if="getPostCoverImage(post)"
+                                :src="resolveAsset(getPostCoverImage(post))"
+                                :alt="`${translateText(post.title)} cover image`"
+                                class="cover-surface__image post-card__cover-image"
+                                loading="lazy"
+                            >
                             <div class="default-cover default-cover--card">
                                 <span class="default-cover__eyebrow">Collection</span>
                                 <strong class="default-cover__title">{{ coverCategoryLabel(post.categoryName) }}</strong>
@@ -244,7 +251,19 @@
 
             <div v-if="selectedPost" class="detail-layout">
                 <article class="card detail-card">
-                    <div class="detail-cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(selectedPost) }" :style="coverSurfaceStyle(selectedPost)">
+                    <div class="detail-cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(selectedPost), 'cover-surface--uploaded': hasPostProvidedCover(selectedPost) }" :style="coverSurfaceStyle(selectedPost)">
+                        <img
+                            v-if="hasPostProvidedCover(selectedPost)"
+                            :src="resolveAsset(getPostOwnCoverImage(selectedPost))"
+                            :alt="`${translateText(selectedPost.title)} cover image`"
+                            class="cover-surface__image detail-cover__image"
+                        >
+                        <img
+                            v-if="!hasPostProvidedCover(selectedPost)"
+                            :src="resolveAsset(getPostCoverImage(selectedPost))"
+                            :alt="`${translateText(selectedPost.title)} default cover image`"
+                            class="cover-surface__image cover-surface__default-image"
+                        >
                         <div v-if="!hasPostProvidedCover(selectedPost)" class="default-cover default-cover--detail">
                             <span class="default-cover__eyebrow">Collection</span>
                             <strong class="default-cover__title">{{ coverCategoryLabel(selectedPost.categoryName) }}</strong>
@@ -868,15 +887,21 @@
                                 <span v-if="reviewerLabel(adminPreviewPost)">Reviewer: {{ translateNickname(reviewerLabel(adminPreviewPost)) }}</span>
                             </div>
                             <div class="admin-detail-modal__body">
-                                <div class="admin-detail-modal__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(adminPreviewPost) }" :style="coverSurfaceStyle(adminPreviewPost)">
+                                <div class="admin-detail-modal__cover" :class="{ 'cover-surface--default': !hasPostProvidedCover(adminPreviewPost), 'cover-surface--uploaded': hasPostProvidedCover(adminPreviewPost) }" :style="coverSurfaceStyle(adminPreviewPost)">
                                     <img
                                         v-if="hasPostProvidedCover(adminPreviewPost)"
                                         :src="resolveAsset(getPostOwnCoverImage(adminPreviewPost))"
                                         :alt="`${translateText(adminPreviewPost.title)} cover image`"
-                                        class="previewable-image"
+                                        class="cover-surface__image admin-detail-modal__cover-image previewable-image"
                                         @click="openAdminCoverPreview"
                                     >
-                                    <div v-else class="default-cover default-cover--admin">
+                                    <img
+                                        v-if="!hasPostProvidedCover(adminPreviewPost)"
+                                        :src="resolveAsset(getPostCoverImage(adminPreviewPost))"
+                                        :alt="`${translateText(adminPreviewPost.title)} default cover image`"
+                                        class="cover-surface__image cover-surface__default-image"
+                                    >
+                                    <div v-if="!hasPostProvidedCover(adminPreviewPost)" class="default-cover default-cover--admin">
                                         <span class="default-cover__eyebrow">Collection</span>
                                         <strong class="default-cover__title">{{ coverCategoryLabel(adminPreviewPost.categoryName) }}</strong>
                                     </div>

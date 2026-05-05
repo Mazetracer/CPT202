@@ -56,10 +56,10 @@ const categoryDescriptionMap = {
 const defaultCoverFallbackImage = "/images/default-covers/default-heritage.svg";
 
 const defaultCoverImageMap = {
-    "traditional craftsmanship": "/images/default-covers/default-craftsmanship.svg",
-    "traditional opera": "/images/default-covers/default-opera.svg",
-    "historic architecture": "/images/default-covers/default-architecture.svg",
-    "folk rituals & festivals": "/images/default-covers/default-folk-rituals.svg"
+    "traditional craftsmanship": "/images/default-covers/default-craftsmanship.jpg",
+    "traditional opera": "/images/default-covers/default-opera.webp",
+    "historic architecture": "/images/default-covers/default-architecture.jpg",
+    "folk rituals & festivals": "/images/default-covers/default-folk-rituals.jpg"
 };
 
 const categoryPieColors = ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"];
@@ -3072,7 +3072,7 @@ createApp({
         },
         coverSurfaceStyle(postOrCoverImageUrl, categoryName) {
             if (postOrCoverImageUrl && typeof postOrCoverImageUrl === "object") {
-                return { backgroundImage: this.buildCover(this.getPostCoverImage(postOrCoverImageUrl)) };
+                return {};
             }
             const coverImage = this.hasRealCover(postOrCoverImageUrl)
                 ? postOrCoverImageUrl
