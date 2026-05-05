@@ -67,6 +67,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
     Page<Post> findAllByStatus(PostStatus status, Pageable pageable);
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    List<Post> findAllByStatusNotOrderByUpdatedAtDesc(PostStatus status);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    Page<Post> findAllByStatusNot(PostStatus status, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusOrderBySubmittedAtDescUpdatedAtDesc(PostStatus status);
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
@@ -74,6 +80,12 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     Page<Post> findAllByTitleContainingIgnoreCase(String title, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    List<Post> findAllByStatusNotAndTitleContainingIgnoreCaseOrderByUpdatedAtDesc(PostStatus status, String title);
+
+    @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
+    Page<Post> findAllByStatusNotAndTitleContainingIgnoreCase(PostStatus status, String title, Pageable pageable);
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     List<Post> findAllByStatusAndTitleContainingIgnoreCaseOrderByUpdatedAtDesc(PostStatus status, String title);
