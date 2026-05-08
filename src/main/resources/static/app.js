@@ -2434,6 +2434,57 @@ createApp({
 
             this.showError("This article could not be re-opened because the live draft detail is unavailable and no local draft snapshot was found.");
         },
+        async returnPostToDraft(entry) {
+            if (!entry?.id) {
+                return;
+            }
+            if (entry.status === "DRAFT" || entry.status === "REJECTED") {
+                await this.editPost(entry);
+                return;
+            }
+
+            const postId = entry.id;
+            const data = await this.request(`/api/my/posts/${postId}/return-to-draft`, {
+                method: "POST"
+            }, "Article moved back to draft. Please edit and submit it for review again.", null, true);
+            if (!data) {
+                return;
+            }
+
+            this.removePostFromPublicCaches(postId);
+            this.storeDraftSnapshot({
+                ...data,
+                categoryId: data.categoryId || this.resolveCategoryId(data.categoryName || entry.categoryName || ""),
+                rejectReason: ""
+            });
+            await this.fetchMyPosts();
+            await this.fetchPosts({ showGlobalLoading: false });
+            this.applyPostDetailToEditor(data, entry);
+        },
+        async deleteMyPost(entry) {
+            if (!entry?.id) {
+                return;
+            }
+
+            const postId = entry.id;
+            let deleted = false;
+            await this.request(`/api/my/posts/${postId}`, {
+                method: "DELETE"
+            }, "Article archived successfully.", () => {
+                deleted = true;
+            }, true);
+
+            if (!deleted) {
+                return;
+            }
+            this.removePostFromPublicCaches(postId);
+            this.removeDraftSnapshot(postId);
+            if (this.editingPostId === postId) {
+                this.resetPostEditor();
+            }
+            await this.fetchMyPosts();
+            await this.fetchPosts({ showGlobalLoading: false });
+        },
         async openAdminPost(postId) {
             this.selectedAdminPostId = postId;
             const data = await this.request(`/api/admin/posts/${postId}`, {
@@ -3069,9 +3120,10 @@ createApp({
             }
         },
         removePostFromPublicCaches(postId) {
-            this.posts = this.posts.filter((post) => post.id !== postId);
-            this.defaultHomepagePostsCache = this.defaultHomepagePostsCache.filter((post) => post.id !== postId);
-            if (this.selectedPostId === postId) {
+            const targetId = String(postId);
+            this.posts = this.posts.filter((post) => String(post.id) !== targetId);
+            this.defaultHomepagePostsCache = this.defaultHomepagePostsCache.filter((post) => String(post.id) !== targetId);
+            if (String(this.selectedPostId) === targetId) {
                 this.selectedPostId = null;
                 this.selectedPost = null;
             }

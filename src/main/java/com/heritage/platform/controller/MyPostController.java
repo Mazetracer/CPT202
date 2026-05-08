@@ -5,8 +5,10 @@ import com.heritage.platform.dto.response.MyPostSummaryResponse;
 import com.heritage.platform.dto.response.PostDetailResponse;
 import com.heritage.platform.enums.PostStatus;
 import com.heritage.platform.service.PostService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,5 +35,16 @@ public class MyPostController {
     @GetMapping("/{postId}")
     public ApiResponse<PostDetailResponse> getMyPostDetail(@PathVariable Long postId) {
         return ApiResponse.success(postService.getMyPostDetail(postId));
+    }
+
+    @PostMapping("/{postId}/return-to-draft")
+    public ApiResponse<PostDetailResponse> returnMyPostToDraft(@PathVariable Long postId) {
+        return ApiResponse.success("Article moved back to draft successfully.", postService.returnMyPostToDraft(postId));
+    }
+
+    @DeleteMapping("/{postId}")
+    public ApiResponse<Void> deleteMyPost(@PathVariable Long postId) {
+        postService.deleteMyPost(postId);
+        return ApiResponse.success("Article deleted successfully.", null);
     }
 }

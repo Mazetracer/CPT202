@@ -133,6 +133,34 @@ public class PostService {
         return toDetail(post);
     }
 
+    @Transactional
+    public void deleteMyPost(Long postId) {
+        User currentUser = authContextService.requireContributor();
+        Post post = postRepository.findByIdAndAuthorId(postId, currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
+        if (post.getStatus() == PostStatus.ARCHIVED) {
+            throw new ResourceNotFoundException("The article could not be found.");
+        }
+
+        post.archive(currentUser);
+    }
+
+    @Transactional
+    public PostDetailResponse returnMyPostToDraft(Long postId) {
+        User currentUser = authContextService.requireContributor();
+        Post post = postRepository.findByIdAndAuthorId(postId, currentUser.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
+        if (post.getStatus() == PostStatus.ARCHIVED) {
+            throw new ResourceNotFoundException("The article could not be found.");
+        }
+        if (post.getStatus() == PostStatus.DRAFT || post.getStatus() == PostStatus.REJECTED) {
+            return toDetail(post);
+        }
+
+        post.returnToDraftForEditing();
+        return toDetail(post);
+    }
+
     @Transactional(readOnly = true)
     public List<PostSummaryResponse> listAll() {
         return listAll(null, null);

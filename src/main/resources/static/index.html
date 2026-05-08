@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=20260508-delete-fix">
 </head>
 <body>
 <div id="app" v-cloak>
@@ -613,6 +613,10 @@
                             <span>{{ entry.commentCount || 0 }} comments</span>
                             <span>{{ formatShortDate(entry.createdAt) }}</span>
                         </div>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="returnPostToDraft(entry)">Modify</button>
+                            <button class="ghost-btn small danger-btn" type="button" @click="deleteMyPost(entry)">Delete</button>
+                        </div>
                     </article>
                     <div v-if="!profilePublishedPosts.length" class="card empty-state">No published articles yet.</div>
                 </div>
@@ -625,6 +629,10 @@
                         <div class="entry-card__meta">
                             <span v-if="entry.submittedAt">Submitted {{ formatShortDate(entry.submittedAt) }}</span>
                             <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
+                        </div>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="returnPostToDraft(entry)">Return to draft</button>
+                            <button class="ghost-btn small danger-btn" type="button" @click="deleteMyPost(entry)">Delete</button>
                         </div>
                     </article>
                     <div v-if="!workspacePending.length" class="card empty-state">No articles are waiting for review right now.</div>
@@ -640,7 +648,10 @@
                             <span v-if="entry.submittedAt">Last submitted {{ formatShortDate(entry.submittedAt) }}</span>
                             <span>Updated {{ formatShortDate(entry.updatedAt) }}</span>
                         </div>
-                        <button class="ghost-btn small" type="button" @click="editPost(entry)">Edit</button>
+                        <div class="request-actions">
+                            <button class="ghost-btn small" type="button" @click="editPost(entry)">Edit</button>
+                            <button class="ghost-btn small danger-btn" type="button" @click="deleteMyPost(entry)">Delete</button>
+                        </div>
                     </article>
                     <div v-if="!workspaceDrafts.length" class="card empty-state">No drafts or rejected articles yet.</div>
                 </div>
@@ -1329,6 +1340,6 @@
 
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script src="/app.js"></script>
+<script src="/app.js?v=20260508-delete-fix"></script>
 </body>
 </html>

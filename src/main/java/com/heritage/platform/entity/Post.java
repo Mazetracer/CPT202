@@ -136,6 +136,14 @@ public class Post extends BaseTimeEntity {
         this.rejectReason = null;
     }
 
+    public void returnToDraftForEditing() {
+        this.status = PostStatus.DRAFT;
+        this.submittedAt = null;
+        this.reviewedAt = null;
+        this.reviewedBy = null;
+        this.rejectReason = null;
+    }
+
     public void approve(User reviewer) {
         this.status = PostStatus.PUBLISHED;
         this.reviewedAt = LocalDateTime.now();

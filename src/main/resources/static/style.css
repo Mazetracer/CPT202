@@ -1014,6 +1014,12 @@ textarea {
     border: 1px solid rgba(143, 75, 47, 0.1);
 }
 
+.danger-btn {
+    color: var(--error);
+    background: rgba(143, 62, 40, 0.08);
+    border-color: rgba(143, 62, 40, 0.18);
+}
+
 .small {
     padding: 10px 16px;
     font-size: 14px;
