@@ -29,6 +29,8 @@ import java.util.Locale;
 @Service
 public class AdminPostService {
 
+    private static final PostStatus HIDDEN_ADMIN_STATUS = PostStatus.DRAFT;
+
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final AuthContextService authContextService;
@@ -51,15 +53,19 @@ public class AdminPostService {
         boolean hasTitle = !trimmedTitle.isEmpty();
         AdminPostSort sortOption = sort == null ? AdminPostSort.UPDATED_DESC : sort;
 
+        if (status == HIDDEN_ADMIN_STATUS) {
+            return List.of();
+        }
+
         List<Post> posts;
         if (status != null && hasTitle) {
             posts = postRepository.findAllByStatusAndTitleContainingIgnoreCaseOrderByUpdatedAtDesc(status, trimmedTitle);
         } else if (status != null) {
             posts = postRepository.findAllByStatusOrderByUpdatedAtDesc(status);
         } else if (hasTitle) {
-            posts = postRepository.findAllByTitleContainingIgnoreCaseOrderByUpdatedAtDesc(trimmedTitle);
+            posts = postRepository.findAllByStatusNotAndTitleContainingIgnoreCaseOrderByUpdatedAtDesc(HIDDEN_ADMIN_STATUS, trimmedTitle);
         } else {
-            posts = postRepository.findAllByOrderByUpdatedAtDesc();
+            posts = postRepository.findAllByStatusNotOrderByUpdatedAtDesc(HIDDEN_ADMIN_STATUS);
         }
 
         posts = posts.stream()
@@ -89,15 +95,27 @@ public class AdminPostService {
         boolean hasTitle = !trimmedTitle.isEmpty();
         Pageable pageable = PageRequest.of(pageNumber, pageSize, buildSort(sort == null ? AdminPostSort.UPDATED_DESC : sort));
 
+        if (status == HIDDEN_ADMIN_STATUS) {
+            return new AdminPostPageResult(
+                    List.of(),
+                    pageNumber,
+                    pageSize,
+                    0,
+                    0,
+                    pageNumber > 0,
+                    false
+            );
+        }
+
         Page<Post> posts;
         if (status != null && hasTitle) {
             posts = postRepository.findAllByStatusAndTitleContainingIgnoreCase(status, trimmedTitle, pageable);
         } else if (status != null) {
             posts = postRepository.findAllByStatus(status, pageable);
         } else if (hasTitle) {
-            posts = postRepository.findAllByTitleContainingIgnoreCase(trimmedTitle, pageable);
+            posts = postRepository.findAllByStatusNotAndTitleContainingIgnoreCase(HIDDEN_ADMIN_STATUS, trimmedTitle, pageable);
         } else {
-            posts = postRepository.findAllBy(pageable);
+            posts = postRepository.findAllByStatusNot(HIDDEN_ADMIN_STATUS, pageable);
         }
 
         return new AdminPostPageResult(

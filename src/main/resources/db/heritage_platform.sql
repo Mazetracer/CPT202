@@ -96,3 +96,16 @@ CREATE TABLE IF NOT EXISTS contributor_applications (
     CONSTRAINT fk_contributor_applications_applicant FOREIGN KEY (applicant_id) REFERENCES users(id),
     CONSTRAINT fk_contributor_applications_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS user_security_questions (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT NOT NULL,
+    question_order INT NOT NULL,
+    question_text VARCHAR(255) NOT NULL,
+    answer_hash VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT uk_user_security_questions_user_order UNIQUE (user_id, question_order),
+    CONSTRAINT chk_user_security_questions_order CHECK (question_order BETWEEN 1 AND 3),
+    CONSTRAINT fk_user_security_questions_user FOREIGN KEY (user_id) REFERENCES users(id)
+);

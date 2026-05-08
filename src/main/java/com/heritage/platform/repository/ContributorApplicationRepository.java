@@ -25,6 +25,9 @@ public interface ContributorApplicationRepository extends JpaRepository<Contribu
     @EntityGraph(attributePaths = {"applicant", "reviewedBy"})
     List<ContributorApplication> findAllByStatusOrderByApplicantUsernameAsc(ContributorApplicationStatus status);
 
+    @EntityGraph(attributePaths = {"applicant", "reviewedBy"})
+    List<ContributorApplication> findAllByApplicantIdAndStatusOrderByCreatedAtDesc(Long applicantId, ContributorApplicationStatus status);
+
     boolean existsByApplicantIdAndStatus(Long applicantId, ContributorApplicationStatus status);
 
     @EntityGraph(attributePaths = {"applicant", "reviewedBy"})

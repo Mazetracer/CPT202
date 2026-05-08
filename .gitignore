@@ -3,12 +3,19 @@
 agents/
 AGENTS.md
 HELP.md
+.DS_Store
+.idea/
+.vscode/
 
 # build outputs
 target/
 build/
+*.jar
+*.zip
 
 # local runtime data
+data/
+uploads/
 data/*.mv.db
 data/*.lock.db
 data/*.trace.db

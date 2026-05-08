@@ -1,14 +1,17 @@
 package com.heritage.platform.service;
 
 import com.heritage.platform.common.BadRequestException;
+import com.heritage.platform.dto.request.MyPasswordChangeRequest;
 import com.heritage.platform.dto.request.MyProfileUpdateRequest;
 import com.heritage.platform.dto.response.MyProfileResponse;
+import com.heritage.platform.dto.response.SecurityQuestionResponse;
 import com.heritage.platform.entity.User;
 import com.heritage.platform.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Service
 public class MyProfileService {
@@ -16,10 +19,14 @@ public class MyProfileService {
 
     private final AuthContextService authContextService;
     private final UserRepository userRepository;
+    private final SecurityQuestionService securityQuestionService;
 
-    public MyProfileService(AuthContextService authContextService, UserRepository userRepository) {
+    public MyProfileService(AuthContextService authContextService,
+                            UserRepository userRepository,
+                            SecurityQuestionService securityQuestionService) {
         this.authContextService = authContextService;
         this.userRepository = userRepository;
+        this.securityQuestionService = securityQuestionService;
     }
 
     @Transactional(readOnly = true)
@@ -37,6 +44,16 @@ public class MyProfileService {
         );
         userRepository.save(user);
         return toResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SecurityQuestionResponse> getMyPasswordSecurityQuestions() {
+        return securityQuestionService.getMySecurityQuestionsForPasswordChange();
+    }
+
+    @Transactional
+    public void changeMyPassword(MyPasswordChangeRequest request) {
+        securityQuestionService.changeMyPasswordBySecurityQuestions(request.answers(), request.newPassword());
     }
 
     private String normalizeAvatarUrl(String avatarUrl) {

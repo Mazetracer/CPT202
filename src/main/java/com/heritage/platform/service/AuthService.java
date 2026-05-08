@@ -3,8 +3,11 @@ package com.heritage.platform.service;
 import com.heritage.platform.common.BadRequestException;
 import com.heritage.platform.common.ResourceNotFoundException;
 import com.heritage.platform.dto.request.LoginRequest;
+import com.heritage.platform.dto.request.PasswordRecoveryQuestionLookupRequest;
+import com.heritage.platform.dto.request.PasswordRecoveryResetRequest;
 import com.heritage.platform.dto.request.RegisterRequest;
 import com.heritage.platform.dto.response.AuthResponse;
+import com.heritage.platform.dto.response.SecurityQuestionResponse;
 import com.heritage.platform.entity.User;
 import com.heritage.platform.enums.UserRole;
 import com.heritage.platform.repository.UserRepository;
@@ -13,17 +16,24 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtils jwtUtils;
+    private final SecurityQuestionService securityQuestionService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtUtils jwtUtils,
+                       SecurityQuestionService securityQuestionService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
+        this.securityQuestionService = securityQuestionService;
     }
 
     @Transactional
@@ -53,6 +63,7 @@ public class AuthService {
                 email,
                 phone
         ));
+        securityQuestionService.replaceQuestionsForUser(user, request.securityQuestions());
 
         return toResponse(user);
     }
@@ -71,6 +82,20 @@ public class AuthService {
         }
 
         return toResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SecurityQuestionResponse> getPasswordRecoveryQuestions(PasswordRecoveryQuestionLookupRequest request) {
+        return securityQuestionService.getQuestionsByUsername(request.username());
+    }
+
+    @Transactional
+    public void resetPasswordBySecurityQuestions(PasswordRecoveryResetRequest request) {
+        securityQuestionService.resetPasswordByUsername(
+                request.username(),
+                request.answers(),
+                request.newPassword()
+        );
     }
 
     private AuthResponse toResponse(User user) {

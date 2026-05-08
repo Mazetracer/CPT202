@@ -37,13 +37,15 @@ public class DataInitializer implements CommandLineRunner {
             ));
         }
 
-        if (categoryRepository.count() == 0) {
-            categoryRepository.saveAll(List.of(
-                    Category.create("传统技艺", "手工艺、织染、雕刻等"),
-                    Category.create("传统戏曲", "戏曲、曲艺、说唱艺术"),
-                    Category.create("古建筑", "古城、古桥、古园林与历史建筑"),
-                    Category.create("民俗节庆", "节日仪式、民间风俗与庆典")
-            ));
-        }
+        List<Category> defaultCategories = List.of(
+                Category.create("传统技艺", "手工艺、织染、雕刻等"),
+                Category.create("传统戏曲", "戏曲、曲艺、说唱艺术"),
+                Category.create("古建筑", "古城、古桥、古园林与历史建筑"),
+                Category.create("民俗节庆", "节日仪式、民间风俗与庆典"),
+                Category.create("其他", "其他文化遗产内容")
+        );
+        defaultCategories.stream()
+                .filter(category -> !categoryRepository.existsByName(category.getName()))
+                .forEach(categoryRepository::save);
     }
 }

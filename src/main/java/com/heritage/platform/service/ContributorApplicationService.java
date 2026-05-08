@@ -81,15 +81,10 @@ public class ContributorApplicationService {
         ContributorApplication application = contributorApplicationRepository.findById(applicationId)
                 .orElseThrow(() -> new ResourceNotFoundException("The application could not be found."));
 
-        if (application.getStatus() != ContributorApplicationStatus.PENDING) {
-            throw new BadRequestException("Only pending applications can be reviewed.");
-        }
-        if (application.getApplicant().getRole() != UserRole.USER) {
-            throw new BadRequestException("This application can no longer be reviewed because the applicant role has changed.");
-        }
+        validatePendingReviewableApplication(application);
 
         application.getApplicant().changeRole(UserRole.CONTRIBUTOR);
-        application.approve(admin);
+        approvePendingApplicationsForApplicant(application.getApplicant(), admin);
         return toAdminResponse(application);
     }
 
@@ -108,6 +103,24 @@ public class ContributorApplicationService {
 
         application.reject(admin, request.reason().trim());
         return toAdminResponse(application);
+    }
+
+    @Transactional
+    public void approvePendingApplicationsForApplicant(User applicant, User admin) {
+        contributorApplicationRepository.findAllByApplicantIdAndStatusOrderByCreatedAtDesc(
+                        applicant.getId(),
+                        ContributorApplicationStatus.PENDING
+                )
+                .forEach(application -> application.approve(admin));
+    }
+
+    private void validatePendingReviewableApplication(ContributorApplication application) {
+        if (application.getStatus() != ContributorApplicationStatus.PENDING) {
+            throw new BadRequestException("Only pending applications can be reviewed.");
+        }
+        if (application.getApplicant().getRole() != UserRole.USER) {
+            throw new BadRequestException("This application can no longer be reviewed because the applicant role has changed.");
+        }
     }
 
     private MyContributorApplicationResponse toMyResponse(ContributorApplication application) {

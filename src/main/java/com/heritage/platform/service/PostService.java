@@ -109,11 +109,17 @@ public class PostService {
     @Transactional(readOnly = true)
     public List<MyPostSummaryResponse> listMyPosts(PostStatus status) {
         User currentUser = authContextService.requireActiveUser();
+        if (status == PostStatus.ARCHIVED) {
+            return List.of();
+        }
         List<Post> posts = status == null
                 ? postRepository.findAllByAuthorIdOrderByUpdatedAtDesc(currentUser.getId())
                 : postRepository.findAllByAuthorIdAndStatusOrderByUpdatedAtDesc(currentUser.getId(), status);
 
-        return posts.stream().map(this::toMySummary).toList();
+        return posts.stream()
+                .filter(post -> post.getStatus() != PostStatus.ARCHIVED)
+                .map(this::toMySummary)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -121,6 +127,9 @@ public class PostService {
         User currentUser = authContextService.requireActiveUser();
         Post post = postRepository.findByIdAndAuthorId(postId, currentUser.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("The article could not be found."));
+        if (post.getStatus() == PostStatus.ARCHIVED) {
+            throw new ResourceNotFoundException("The article could not be found.");
+        }
         return toDetail(post);
     }
 

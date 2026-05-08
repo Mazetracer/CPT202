@@ -4,7 +4,8 @@ const categoryMap = {
     "传统技艺": "Traditional Craftsmanship",
     "传统戏曲": "Traditional Opera",
     "古建筑": "Historic Architecture",
-    "民俗节庆": "Folk Rituals & Festivals"
+    "民俗节庆": "Folk Rituals & Festivals",
+    "其他": "Others"
 };
 
 const nicknameMap = {
@@ -43,6 +44,25 @@ const regionMap = {
 
 const postTitleByteLimit = 150;
 const postContentByteLimit = 60000;
+const requiredSecurityQuestionCount = 3;
+
+const createEmptySecurityQuestions = () => Array.from({ length: requiredSecurityQuestionCount }, (_, index) => ({
+    questionOrder: index + 1,
+    questionText: "",
+    answer: ""
+}));
+
+const createEmptySecurityAnswers = () => Array.from({ length: requiredSecurityQuestionCount }, () => "");
+
+const createEmptyRegisterForm = () => ({
+    username: "",
+    nickname: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+    securityQuestions: createEmptySecurityQuestions()
+});
 
 const backendMessageMap = {};
 
@@ -50,7 +70,8 @@ const categoryDescriptionMap = {
     "传统技艺": "Material culture, workshop practice, motifs, and making processes.",
     "传统戏曲": "Performance traditions, costume, vocal lineages, and stage memory.",
     "古建筑": "Historic buildings, construction craft, spatial heritage, and preservation.",
-    "民俗节庆": "Seasonal ritual, festivals, community gatherings, and oral custom."
+    "民俗节庆": "Seasonal ritual, festivals, community gatherings, and oral custom.",
+    "其他": "Other heritage materials that do not fit the main collections."
 };
 
 const defaultCoverFallbackImage = "/images/default-covers/default-heritage.svg";
@@ -62,13 +83,14 @@ const defaultCoverImageMap = {
     "folk rituals & festivals": "/images/default-covers/default-folk-rituals.jpg"
 };
 
-const categoryPieColors = ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d"];
+const categoryPieColors = ["#8f4b2f", "#6d7561", "#c9a36d", "#2f241d", "#57707a"];
 
 const fallbackCategories = [
     { id: 1, name: "传统技艺", description: "Material culture, workshop practice, motifs, and making processes." },
     { id: 2, name: "传统戏曲", description: "Performance traditions, costume, vocal lineages, and stage memory." },
     { id: 3, name: "古建筑", description: "Historic buildings, construction craft, spatial heritage, and preservation." },
-    { id: 4, name: "民俗节庆", description: "Seasonal ritual, festivals, community gatherings, and oral custom." }
+    { id: 4, name: "民俗节庆", description: "Seasonal ritual, festivals, community gatherings, and oral custom." },
+    { id: 5, name: "其他", description: "Other heritage materials that do not fit the main collections." }
 ];
 
 const fallbackPostDetails = {
@@ -516,24 +538,28 @@ createApp({
             profileSection: "published",
             adminSection: "articles",
             currentUser: readStoredUser(),
-            registerForm: {
-                username: "",
-                nickname: "",
-                email: "",
-                phone: "",
-                password: "",
-                confirmPassword: ""
-            },
+            registerForm: createEmptyRegisterForm(),
             loginForm: {
                 username: "",
                 password: ""
             },
+            passwordRecoveryLookupUsername: "",
+            passwordRecoveryUsername: "",
+            passwordRecoveryQuestions: [],
+            passwordRecoveryAnswers: createEmptySecurityAnswers(),
+            passwordRecoveryNewPassword: "",
+            passwordRecoveryConfirmPassword: "",
+            passwordChangeQuestions: [],
+            passwordChangeAnswers: createEmptySecurityAnswers(),
+            passwordChangeNewPassword: "",
+            passwordChangeConfirmPassword: "",
             profileForm: {
                 nickname: "",
                 avatarUrl: "",
                 bio: ""
             },
             profileEditingMode: "",
+            profileEditTab: "profile",
             profileAvatarFileLabel: "No file selected",
             authMode: "login",
             authBanner: "",
@@ -748,21 +774,22 @@ createApp({
             return this.filteredPosts[0] || this.hotPosts[0] || this.posts[0] || null;
         },
         hotPosts() {
-            return [...this.defaultHomepagePostsCache]
+            return [...this.publishedHomepagePosts]
                 .sort((left, right) => this.buildHeatScore(right) - this.buildHeatScore(left))
                 .slice(0, 5);
         },
         categoryStats() {
+            const publishedPosts = this.publishedHomepagePosts;
             const categories = this.categories.length
                 ? this.categories
-                : normaliseCategories(this.defaultHomepagePostsCache.map((post) => ({
+                : normaliseCategories(publishedPosts.map((post) => ({
                     id: post.categoryId || undefined,
                     name: post.categoryName,
                     description: categoryDescriptionMap[post.categoryName] || ""
                 })));
             const counts = categories.map((category) => {
                 const categoryId = String(category.id);
-                const posts = this.defaultHomepagePostsCache.filter((post) => String(post.categoryId) === categoryId);
+                const posts = publishedPosts.filter((post) => String(post.categoryId) === categoryId);
                 return {
                     id: categoryId,
                     name: category.name,
@@ -835,14 +862,25 @@ createApp({
         profilePublishedPosts() {
             return this.myPosts.filter((post) => post.status === "PUBLISHED");
         },
+        publishedHomepagePosts() {
+            return this.defaultHomepagePostsCache.filter((post) => post.status === "PUBLISHED");
+        },
         likedPosts() {
-            return this.defaultHomepagePostsCache.filter((post) => this.likedPostIds.includes(Number(post.id)));
+            return this.publishedHomepagePosts.filter((post) => this.likedPostIds.includes(Number(post.id)));
         },
         selectedPostLiked() {
             if (!this.selectedPost?.id) {
                 return false;
             }
             return Boolean(this.selectedPost.likedByCurrentUser);
+        },
+        hasPasswordRecoveryQuestions() {
+            return Array.isArray(this.passwordRecoveryQuestions)
+                && this.passwordRecoveryQuestions.length === requiredSecurityQuestionCount;
+        },
+        hasPasswordChangeQuestions() {
+            return Array.isArray(this.passwordChangeQuestions)
+                && this.passwordChangeQuestions.length === requiredSecurityQuestionCount;
         },
         selectedPostComments() {
             return Array.isArray(this.selectedPost?.comments) ? this.selectedPost.comments : [];
@@ -1130,7 +1168,7 @@ createApp({
         defaultHomepagePostsCache: {
             handler() {
                 this.$nextTick(() => {
-                    if (this.currentView === "home") {
+                    if (["home", "admin"].includes(this.currentView)) {
                         this.renderCharts();
                     }
                 });
@@ -1321,12 +1359,22 @@ createApp({
             }
         },
         openProfileEditor(mode) {
-            this.profileEditingMode = mode;
+            const nextTab = mode === "password" ? "password" : "profile";
+            this.profileEditingMode = "profile";
+            this.profileEditTab = nextTab;
             this.syncProfileFormFromCurrentUser();
         },
         closeProfileEditor() {
             this.profileEditingMode = "";
+            this.profileEditTab = "profile";
+            this.resetPasswordChangeForm();
             this.syncProfileFormFromCurrentUser();
+        },
+        selectProfileEditTab(tab) {
+            if (!["profile", "password"].includes(tab)) {
+                return;
+            }
+            this.profileEditTab = tab;
         },
         navigate(view, updateHash = true) {
             let nextView = view;
@@ -1357,6 +1405,7 @@ createApp({
             this.currentView = nextView;
             if (nextView === "auth") {
                 this.authMode = "login";
+                this.resetPasswordRecoveryForm();
             }
             if (nextView === "profile" && this.currentUser) {
                 this.ensureAccessibleProfileSection();
@@ -1364,6 +1413,11 @@ createApp({
             }
             if (nextView === "admin" && this.isAdmin) {
                 this.warmAdminDashboardData();
+            }
+            if (["home", "admin"].includes(nextView)) {
+                this.$nextTick(() => {
+                    this.renderCharts();
+                });
             }
             if (updateHash) {
                 window.location.hash = `#${nextView}`;
@@ -1735,6 +1789,7 @@ createApp({
                 showGlobalLoading: false,
                 useHomepageSearchLoading: true
             });
+            this.scrollToArticleResults();
         },
         async handleHomepageSearchEnter() {
             await this.triggerHomepageSearch();
@@ -1763,11 +1818,12 @@ createApp({
             if (!Array.isArray(data)) {
                 return;
             }
-            this.myPosts = data;
-            this.workspaceDrafts = data.filter((post) => post.status === "DRAFT" || post.status === "REJECTED");
-            this.workspacePending = data.filter((post) => post.status === "PENDING_REVIEW");
+            const visiblePosts = data.filter((post) => post.status !== "ARCHIVED");
+            this.myPosts = visiblePosts;
+            this.workspaceDrafts = visiblePosts.filter((post) => post.status === "DRAFT" || post.status === "REJECTED");
+            this.workspacePending = visiblePosts.filter((post) => post.status === "PENDING_REVIEW");
             if (this.editingPostId) {
-                const currentEditingPost = data.find((post) => post.id === this.editingPostId);
+                const currentEditingPost = visiblePosts.find((post) => post.id === this.editingPostId);
                 if (currentEditingPost) {
                     this.editingPostStatus = currentEditingPost.status;
                     this.editingRejectReason = currentEditingPost.rejectReason || "";
@@ -1784,6 +1840,25 @@ createApp({
             }, "", null, true);
             if (Array.isArray(data)) {
                 this.contributorApplications = data;
+            }
+        },
+        resetPasswordChangeForm() {
+            this.passwordChangeQuestions = [];
+            this.passwordChangeAnswers = createEmptySecurityAnswers();
+            this.passwordChangeNewPassword = "";
+            this.passwordChangeConfirmPassword = "";
+        },
+        async loadMyPasswordSecurityQuestions() {
+            if (!this.currentUser) {
+                this.resetPasswordChangeForm();
+                return;
+            }
+            const data = await this.request("/api/my/profile/password-security-questions", {
+                method: "GET"
+            }, "", null, true);
+            if (Array.isArray(data) && data.length === requiredSecurityQuestionCount) {
+                this.passwordChangeQuestions = data;
+                this.passwordChangeAnswers = createEmptySecurityAnswers();
             }
         },
         async fetchAdminPosts() {
@@ -2057,7 +2132,9 @@ createApp({
                 });
                 const payload = await response.json();
                 if (!payload.success) {
-                    throw new Error(this.translateBackendMessage(payload.message) || "Unable to load this article.");
+                    const requestError = new Error(this.translateBackendMessage(payload.message) || "Unable to load this article.");
+                    requestError.status = response.status;
+                    throw requestError;
                 }
                 this.selectedPost = normaliseDetail(payload.data);
                 this.setStoredLike(postId, Boolean(this.selectedPost.likedByCurrentUser));
@@ -2068,6 +2145,11 @@ createApp({
                     window.location.hash = `#detail-${postId}`;
                 }
             } catch (error) {
+                if (error.status === 404) {
+                    this.removePostFromPublicCaches(postId);
+                    this.showError(error.message || "Unable to load this article.");
+                    return;
+                }
                 const summary = this.posts.find((post) => post.id === postId);
                 if (summary) {
                     this.selectedPost = normaliseDetail({
@@ -2175,6 +2257,14 @@ createApp({
                 }
             });
         },
+        scrollToArticleResults() {
+            this.$nextTick(() => {
+                const section = this.$refs.articleResultsSection;
+                if (section?.scrollIntoView) {
+                    section.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+            });
+        },
         focusAuthInput(refName) {
             this.$nextTick(() => {
                 const input = this.$refs[refName];
@@ -2183,15 +2273,32 @@ createApp({
                 }
             });
         },
+        resetPasswordRecoveryForm() {
+            this.passwordRecoveryLookupUsername = "";
+            this.passwordRecoveryUsername = "";
+            this.passwordRecoveryQuestions = [];
+            this.passwordRecoveryAnswers = createEmptySecurityAnswers();
+            this.passwordRecoveryNewPassword = "";
+            this.passwordRecoveryConfirmPassword = "";
+        },
         openRegisterMode() {
             this.authMode = "register";
             this.errorMessage = "";
+            this.authBanner = "";
             this.focusAuthInput("registerUsernameInput");
         },
         openLoginMode() {
             this.authMode = "login";
             this.errorMessage = "";
+            this.resetPasswordRecoveryForm();
             this.focusAuthInput("loginUsernameInput");
+        },
+        openPasswordRecoveryMode() {
+            this.authMode = "recover";
+            this.errorMessage = "";
+            this.authBanner = "";
+            this.resetPasswordRecoveryForm();
+            this.focusAuthInput("passwordRecoveryUsernameInput");
         },
         clearHomeSearch() {
             this.homeSearchQuery = "";
@@ -2423,7 +2530,11 @@ createApp({
                 nickname: this.registerForm.nickname.trim(),
                 email: this.normaliseOptionalField(this.registerForm.email),
                 phone: this.normaliseOptionalField(this.registerForm.phone),
-                password: this.registerForm.password
+                password: this.registerForm.password,
+                securityQuestions: this.registerForm.securityQuestions.map((question) => ({
+                    questionText: question.questionText,
+                    answer: question.answer
+                }))
             };
 
             await this.request("/api/auth/register", {
@@ -2436,14 +2547,7 @@ createApp({
                     username: payload.username,
                     password: ""
                 };
-                this.registerForm = {
-                    username: "",
-                    nickname: "",
-                    email: "",
-                    phone: "",
-                    password: "",
-                    confirmPassword: ""
-                };
+                this.registerForm = createEmptyRegisterForm();
                 this.authMode = "login";
                 this.navigate("auth");
                 this.focusAuthInput("loginUsernameInput");
@@ -2472,6 +2576,77 @@ createApp({
                 this.navigate("home");
             });
         },
+        async loadPasswordRecoveryQuestions() {
+            const username = String(this.passwordRecoveryLookupUsername || "").trim();
+            if (!username) {
+                this.showError("Username cannot be empty.");
+                return;
+            }
+
+            const data = await this.request("/api/auth/password-recovery/questions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username })
+            });
+
+            if (Array.isArray(data) && data.length === requiredSecurityQuestionCount) {
+                this.passwordRecoveryUsername = username;
+                this.passwordRecoveryQuestions = data;
+                this.passwordRecoveryAnswers = createEmptySecurityAnswers();
+                this.passwordRecoveryNewPassword = "";
+                this.passwordRecoveryConfirmPassword = "";
+                this.showSuccess("Security questions loaded. Please answer at least 2 correctly to reset your password.");
+            }
+        },
+        async resetPasswordBySecurityQuestions() {
+            const validationMessage = this.validatePasswordRecoveryForm();
+            if (validationMessage) {
+                this.showError(validationMessage);
+                return;
+            }
+
+            const payload = {
+                username: this.passwordRecoveryUsername,
+                newPassword: this.passwordRecoveryNewPassword,
+                answers: this.passwordRecoveryAnswers
+            };
+
+            await this.request("/api/auth/password-recovery/reset", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }, "Password reset successfully. Please sign in with your new password.", async () => {
+                this.authMode = "login";
+                this.authBanner = "Password reset successfully. Please sign in with your new password.";
+                this.loginForm = {
+                    username: this.passwordRecoveryUsername,
+                    password: ""
+                };
+                this.resetPasswordRecoveryForm();
+                this.focusAuthInput("loginUsernameInput");
+            });
+        },
+        async changeMyPasswordFromProfile() {
+            if (!this.currentUser) {
+                this.redirectGuestToRegister("Sign in before changing your password.");
+                return;
+            }
+            const validationMessage = this.validateProfilePasswordChangeForm();
+            if (validationMessage) {
+                this.showError(validationMessage);
+                return;
+            }
+            await this.request("/api/my/profile/password/change", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    newPassword: this.passwordChangeNewPassword,
+                    answers: this.passwordChangeAnswers
+                })
+            }, "Password changed successfully.", async () => {
+                this.resetPasswordChangeForm();
+            }, true);
+        },
         logout() {
             this.currentUser = null;
             this.selectedPostId = null;
@@ -2481,6 +2656,7 @@ createApp({
             this.closeAdminPostPreview();
             this.profileSection = "published";
             this.profileEditingMode = "";
+            this.profileEditTab = "profile";
             this.adminSection = "articles";
             this.pendingQueueQuery = "";
             this.pendingQueueReturnToApprovals = false;
@@ -2501,6 +2677,8 @@ createApp({
             this.likedPostIds = [];
             this.authBanner = "";
             this.resetPostEditor();
+            this.resetPasswordRecoveryForm();
+            this.resetPasswordChangeForm();
             localStorage.removeItem("heritage-current-user");
             this.navigate("home");
             this.showSuccess("You have been signed out.");
@@ -2558,6 +2736,7 @@ createApp({
                 };
                 this.storeUser(this.currentUser);
                 this.profileEditingMode = "profile";
+                this.profileEditTab = "profile";
             }
             event.target.value = "";
         },
@@ -2889,31 +3068,67 @@ createApp({
                 await this.fetchAdminUsers();
             }
         },
+        removePostFromPublicCaches(postId) {
+            this.posts = this.posts.filter((post) => post.id !== postId);
+            this.defaultHomepagePostsCache = this.defaultHomepagePostsCache.filter((post) => post.id !== postId);
+            if (this.selectedPostId === postId) {
+                this.selectedPostId = null;
+                this.selectedPost = null;
+            }
+            this.ensurePostPageInRange();
+        },
+        async updateAdminPostArchiveState(postId, action, successMessage) {
+            if (!postId) {
+                return null;
+            }
+            const data = await this.request(`/api/admin/posts/${postId}/${action}`, {
+                method: "POST"
+            }, successMessage, null, true);
+            if (!data) {
+                return null;
+            }
+            if (this.selectedAdminPostId === postId) {
+                this.selectedAdminPost = data;
+                this.adminReviewReason = data.rejectReason || "";
+            }
+            if (this.adminPreviewPostId === postId) {
+                this.adminPreviewPost = data;
+            }
+            if (data.status === "ARCHIVED") {
+                this.removePostFromPublicCaches(postId);
+            }
+            await this.refreshAdminViews();
+            this.hasDefaultHomepagePostsCache = false;
+            await this.ensureDefaultHomepagePostsCache();
+            await this.fetchPosts();
+            if (this.currentUser) {
+                await this.fetchMyPosts();
+            }
+            return data;
+        },
         async archiveSelectedAdminPost() {
             if (!this.selectedAdminPostId) {
                 return;
             }
-            const data = await this.request(`/api/admin/posts/${this.selectedAdminPostId}/archive`, {
-                method: "POST"
-            }, "Article archived successfully.", null, true);
-            if (data) {
-                await this.refreshAdminViews();
-                await this.openAdminPost(this.selectedAdminPostId);
-                await this.fetchPosts();
-            }
+            await this.updateAdminPostArchiveState(this.selectedAdminPostId, "archive", "Article archived successfully.");
         },
         async restoreSelectedAdminPost() {
             if (!this.selectedAdminPostId) {
                 return;
             }
-            const data = await this.request(`/api/admin/posts/${this.selectedAdminPostId}/restore`, {
-                method: "POST"
-            }, "Article restored successfully.", null, true);
-            if (data) {
-                await this.refreshAdminViews();
-                await this.openAdminPost(this.selectedAdminPostId);
-                await this.fetchPosts();
+            await this.updateAdminPostArchiveState(this.selectedAdminPostId, "restore", "Article restored successfully.");
+        },
+        async archivePreviewAdminPost() {
+            if (!this.adminPreviewPostId) {
+                return;
             }
+            await this.updateAdminPostArchiveState(this.adminPreviewPostId, "archive", "Article archived successfully.");
+        },
+        async restorePreviewAdminPost() {
+            if (!this.adminPreviewPostId) {
+                return;
+            }
+            await this.updateAdminPostArchiveState(this.adminPreviewPostId, "restore", "Article restored successfully.");
         },
         async request(url, options = {}, successMessage = "", onSuccess, requiresAuth = false) {
             this.errorMessage = "";
@@ -3017,13 +3232,20 @@ createApp({
             }
             return "";
         },
+        scrollToTopForMessage() {
+            window.requestAnimationFrame(() => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+        },
         showError(message) {
             this.errorMessage = message;
             this.successMessage = "";
+            this.scrollToTopForMessage();
         },
         showSuccess(message) {
             this.successMessage = message;
             this.errorMessage = "";
+            this.scrollToTopForMessage();
             window.setTimeout(() => {
                 if (this.successMessage === message) {
                     this.successMessage = "";
@@ -3239,6 +3461,23 @@ createApp({
             if (phone && phone.length > 20) {
                 return "Phone number cannot exceed 20 characters.";
             }
+            const securityQuestions = Array.isArray(this.registerForm.securityQuestions)
+                ? this.registerForm.securityQuestions
+                : [];
+            if (securityQuestions.length !== requiredSecurityQuestionCount) {
+                return "Exactly 3 security questions are required.";
+            }
+            for (let i = 0; i < securityQuestions.length; i += 1) {
+                const question = securityQuestions[i] || {};
+                const questionText = String(question.questionText || "").trim();
+                const answer = String(question.answer || "");
+                if (!questionText) {
+                    return `Security question ${i + 1} cannot be empty.`;
+                }
+                if (!answer.trim()) {
+                    return `Security answer ${i + 1} cannot be empty.`;
+                }
+            }
             return "";
         },
         validateLoginForm() {
@@ -3247,6 +3486,54 @@ createApp({
 
             if (!username || !password) {
                 return "Please enter your username and password.";
+            }
+            return "";
+        },
+        validatePasswordRecoveryForm() {
+            if (!this.hasPasswordRecoveryQuestions) {
+                return "Please load your security questions first.";
+            }
+            const newPassword = this.passwordRecoveryNewPassword || "";
+            const confirmPassword = this.passwordRecoveryConfirmPassword || "";
+            if (newPassword.length < 6) {
+                return "Password must be at least 6 characters.";
+            }
+            if (newPassword !== confirmPassword) {
+                return "Passwords do not match.";
+            }
+            if (!Array.isArray(this.passwordRecoveryAnswers)
+                || this.passwordRecoveryAnswers.length !== requiredSecurityQuestionCount) {
+                return "Exactly 3 security answers are required.";
+            }
+            for (let i = 0; i < this.passwordRecoveryAnswers.length; i += 1) {
+                const answer = String(this.passwordRecoveryAnswers[i] || "");
+                if (!answer.trim()) {
+                    return `Security answer ${i + 1} cannot be empty.`;
+                }
+            }
+            return "";
+        },
+        validateProfilePasswordChangeForm() {
+            if (!this.hasPasswordChangeQuestions) {
+                return "Please load your security questions first.";
+            }
+            const newPassword = this.passwordChangeNewPassword || "";
+            const confirmPassword = this.passwordChangeConfirmPassword || "";
+            if (newPassword.length < 6) {
+                return "Password must be at least 6 characters.";
+            }
+            if (newPassword !== confirmPassword) {
+                return "Passwords do not match.";
+            }
+            if (!Array.isArray(this.passwordChangeAnswers)
+                || this.passwordChangeAnswers.length !== requiredSecurityQuestionCount) {
+                return "Exactly 3 security answers are required.";
+            }
+            for (let i = 0; i < this.passwordChangeAnswers.length; i += 1) {
+                const answer = String(this.passwordChangeAnswers[i] || "");
+                if (!answer.trim()) {
+                    return `Security answer ${i + 1} cannot be empty.`;
+                }
             }
             return "";
         },
@@ -3263,9 +3550,9 @@ createApp({
             if (!chartDom || typeof echarts === "undefined") {
                 return;
             }
-            const myChart = echarts.init(chartDom);
+            const myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
             const dateCounts = {};
-            this.defaultHomepagePostsCache.forEach((post) => {
+            this.publishedHomepagePosts.forEach((post) => {
                 const date = String(post.createdAt || "").substring(0, 10);
                 if (date) {
                     dateCounts[date] = (dateCounts[date] || 0) + 1;
@@ -3282,15 +3569,16 @@ createApp({
                 yAxis: { type: "value", minInterval: 1 },
                 series: [{ data, type: "line", smooth: true, itemStyle: { color: "#8f4b2f" } }]
             });
+            myChart.resize();
         },
         renderCommentLineChart() {
             const chartDom = document.getElementById("chart-comments");
             if (!chartDom || typeof echarts === "undefined") {
                 return;
             }
-            const myChart = echarts.init(chartDom);
+            const myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom);
             const dateCounts = {};
-            this.defaultHomepagePostsCache.forEach((post) => {
+            this.publishedHomepagePosts.forEach((post) => {
                 const date = String(post.createdAt || "").substring(0, 10);
                 if (date) {
                     dateCounts[date] = (dateCounts[date] || 0) + Number(post.commentCount || 0);
@@ -3307,6 +3595,7 @@ createApp({
                 yAxis: { type: "value", minInterval: 1 },
                 series: [{ data, type: "line", smooth: true, itemStyle: { color: "#6d7561" } }]
             });
+            myChart.resize();
         },
         renderCategoryPieChart() {
             const chartDom = document.getElementById("chart-categories");
@@ -3333,7 +3622,7 @@ createApp({
                 series: [{
                     type: "pie",
                     selectedMode: false,
-                    radius: ["34%", "64%"],
+                    radius: ["38%", "72%"],
                     center: ["50%", "55%"],
                     label: { show: false },
                     labelLine: { show: false },
@@ -3342,6 +3631,7 @@ createApp({
                     data: pieData
                 }]
             }, true);
+            myChart.resize();
         }
     }
 }).mount("#app");

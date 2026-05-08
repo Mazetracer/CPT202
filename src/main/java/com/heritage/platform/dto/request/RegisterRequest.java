@@ -3,6 +3,10 @@ package com.heritage.platform.dto.request;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.List;
 
 public record RegisterRequest(
         @NotBlank(message = "Username cannot be empty.")
@@ -22,6 +26,11 @@ public record RegisterRequest(
         String email,
 
         @Size(max = 20, message = "Phone number cannot exceed 20 characters.")
-        String phone
+        String phone,
+
+        @NotNull(message = "Security questions are required.")
+        @Valid
+        @Size(min = 3, max = 3, message = "Exactly 3 security questions are required.")
+        List<SecurityQuestionRequest> securityQuestions
 ) {
 }

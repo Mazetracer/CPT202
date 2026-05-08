@@ -6,10 +6,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Heritage Exchange Platform</title>
+    <title>Culture Realm</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;600;700&family=Nunito+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -17,9 +17,11 @@
     <header class="topbar">
         <div class="container topbar__inner">
             <button class="brand" type="button" @click="navigate('home')">
-                <span class="brand__crest">H</span>
+                <span class="brand__crest">
+                    <img src="/images/default-covers/brand-image.png" alt="Culture Realm logo" class="brand__crest-image">
+                </span>
                 <span>
-                    <strong>Heritage Exchange</strong>
+                    <strong>Culture Realm</strong>
                     <small>Stories, craft, and memory</small>
                 </span>
             </button>
@@ -60,20 +62,65 @@
         <div class="hero__texture"></div>
         <div class="container hero__grid">
             <div class="hero__copy">
-                <p class="eyebrow">Living Heritage Archive</p>
-                <h1>Build a richer front-end archive for essays, collections, and editorial workflows.</h1>
+                <p class="eyebrow">COMMUNITY HERITAGE SHARING PLATFORM</p>
+                <h1>Share Heritage Stories, Preserve Cultural Memory.</h1>
                 <p class="hero__text">
-                    This version centers on the public archive search, article reading, a personal workspace,
-                    and a lightweight administrator console.
+                    Discover local traditions, old photographs, handmade crafts, community memories, and cultural
+                    resources shared by contributors and reviewed by curators.
                 </p>
+                <section class="card search-panel hero-search-panel" aria-label="Homepage article search">
+                    <p class="eyebrow dark">Archive Search</p>
+                    <h3>Search heritage stories by keyword and collection.</h3>
+                    <form class="search-panel__controls" @submit.prevent="triggerHomepageSearch">
+                        <div class="search-panel__search-row">
+                            <input
+                                v-model="homeSearchQuery"
+                                type="text"
+                                placeholder="Search by title, contributor, place, or keyword"
+                            >
+                            <button
+                                class="primary-btn search-panel__submit"
+                                type="submit"
+                                :disabled="homepageSearchLoading"
+                                :aria-busy="homepageSearchLoading ? 'true' : 'false'"
+                                aria-label="Search homepage articles"
+                            >
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.44 4.43 1.06-1.06-4.43-4.44A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"></path>
+                                </svg>
+                                <span>{{ homepageSearchLoading ? 'Searching...' : 'Search' }}</span>
+                            </button>
+                        </div>
+                        <label class="search-panel__category-select">
+                            <span>Category</span>
+                            <select v-model="selectedCategoryFilter" @change="triggerHomepageSearch">
+                                <option value="">All collections</option>
+                                <option v-for="category in categories" :key="category.id" :value="category.name">
+                                    {{ translateCategory(category.name) }}
+                                </option>
+                            </select>
+                        </label>
+                    </form>
+                    <div v-if="hasActiveHomepageFilters" class="search-panel__active-filters">
+                        <span class="toolbar__label">Current filters</span>
+                        <div class="tag-list">
+                            <span v-if="activeHomepageKeyword" class="story-chip story-chip--filter">Keyword: "{{ activeHomepageKeyword }}"</span>
+                            <span v-if="appliedCategoryFilter" class="story-chip story-chip--filter">Collection: {{ selectedCategoryFilterLabel }}</span>
+                        </div>
+                    </div>
+                    <div class="tag-list">
+                        <span class="story-chip">{{ filteredPosts.length }} results</span>
+                        <button class="ghost-btn small" type="button" @click="clearHomeSearch">Clear filters</button>
+                    </div>
+                </section>
             </div>
 
             <aside class="hero__card card">
-                <p class="eyebrow">Platform Snapshot</p>
-                <h2>A front-end structure ready for richer course project demos.</h2>
+                <p class="eyebrow">ABOUT THIS PLATFORM</p>
+                <h2>A shared space for culture, memory, and community heritage.</h2>
                 <p>
-                    The interface now includes a searchable homepage, draft desk,
-                    personal workspace, article detail view, and an administrator workspace.
+                    Heritage Exchange helps people publish, review, search, and read approved cultural heritage
+                    resources in one calm and trustworthy digital archive.
                 </p>
                 <div class="hero__stats">
                     <div>
@@ -102,17 +149,11 @@
             <section class="card statistics-panel">
                 <div class="section-head compact">
                     <div>
-                        <p class="eyebrow dark">Archive Metrics</p>
-                        <h2>Platform Statistics</h2>
+                        <p class="eyebrow dark">Archive Insights</p>
+                        <h2>Collection Distribution and Heat Ranking</h2>
                     </div>
                 </div>
-                <div class="analytics-panel">
-                    <article class="chart-card">
-                        <div id="chart-posts" class="chart-surface" aria-label="Daily published stories chart"></div>
-                    </article>
-                    <article class="chart-card">
-                        <div id="chart-comments" class="chart-surface" aria-label="Discussion activity trends chart"></div>
-                    </article>
+                <div class="home-insights-grid">
                     <article class="chart-card chart-card--category">
                         <div id="chart-categories" class="chart-surface chart-surface--pie" aria-label="Collections distribution chart"></div>
                         <div v-if="categoryPieLegendItems.length" class="category-chart-legend" aria-label="Collections distribution legend">
@@ -123,54 +164,7 @@
                             </div>
                         </div>
                     </article>
-                </div>
-            </section>
-
-            <section class="home-discovery">
-                <section class="card search-panel">
-                    <p class="eyebrow dark">Archive Search</p>
-                    <h3>Search articles by title or username, then filter by collection.</h3>
-                    <form class="search-panel__controls" @submit.prevent="triggerHomepageSearch">
-                        <div class="search-panel__search-row">
-                            <input
-                                v-model="homeSearchQuery"
-                                type="text"
-                                placeholder="Search the archive"
-                            >
-                            <button
-                                class="primary-btn search-panel__submit"
-                                type="submit"
-                                :disabled="homepageSearchLoading"
-                                :aria-busy="homepageSearchLoading ? 'true' : 'false'"
-                                aria-label="Search homepage articles"
-                            >
-                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                                    <path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.44 4.43 1.06-1.06-4.43-4.44A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"></path>
-                                </svg>
-                                <span>{{ homepageSearchLoading ? 'Searching...' : 'Search' }}</span>
-                            </button>
-                        </div>
-                        <select v-model="selectedCategoryFilter" @change="triggerHomepageSearch">
-                            <option value="">All collections</option>
-                            <option v-for="category in categories" :key="category.id" :value="category.name">
-                                {{ translateCategory(category.name) }}
-                            </option>
-                        </select>
-                    </form>
-                    <div v-if="hasActiveHomepageFilters" class="search-panel__active-filters">
-                        <span class="toolbar__label">Current filters</span>
-                        <div class="tag-list">
-                            <span v-if="activeHomepageKeyword" class="story-chip story-chip--filter">Keyword: "{{ activeHomepageKeyword }}"</span>
-                            <span v-if="appliedCategoryFilter" class="story-chip story-chip--filter">Collection: {{ selectedCategoryFilterLabel }}</span>
-                        </div>
-                    </div>
-                    <div class="tag-list">
-                        <span class="story-chip">{{ filteredPosts.length }} results</span>
-                        <button class="ghost-btn small" type="button" @click="clearHomeSearch">Clear filters</button>
-                    </div>
-                </section>
-
-                <aside class="card ranking-card">
+                    <aside class="card ranking-card">
                     <p class="eyebrow dark">Heat Ranking</p>
                     <h3>Most active articles</h3>
                     <ol v-if="hotPosts.length" class="ranking-list">
@@ -185,10 +179,11 @@
                         </li>
                     </ol>
                     <p v-else class="muted">{{ hotRankingEmptyMessage }}</p>
-                </aside>
+                    </aside>
+                </div>
             </section>
 
-            <section class="article-results-section">
+            <section class="article-results-section" ref="articleResultsSection">
                 <div class="section-head article-results-section__head">
                     <div>
                         <p class="eyebrow dark">Article Archive</p>
@@ -540,7 +535,11 @@
                             <h3>Update profile</h3>
                         </div>
                     </div>
-                    <div class="profile-edit-grid">
+                    <div class="profile-edit-tabs">
+                        <button class="tab-btn" :class="{ active: profileEditTab === 'profile' }" type="button" @click="selectProfileEditTab('profile')">Profile</button>
+                        <button class="tab-btn" :class="{ active: profileEditTab === 'password' }" type="button" @click="selectProfileEditTab('password')">Password</button>
+                    </div>
+                    <div v-if="profileEditTab === 'profile'" class="profile-edit-grid">
                         <div class="profile-avatar-editor">
                             <div v-if="profileForm.avatarUrl" class="profile-avatar profile-avatar--image profile-avatar--editor">
                                 <img :src="resolveAsset(profileForm.avatarUrl)" :alt="`${translateNickname(profileForm.nickname || currentUser.nickname)} avatar preview`">
@@ -565,6 +564,31 @@
                             <p class="muted profile-edit-form__hint">{{ profileBioByteCount }}/500 bytes</p>
                             <div class="request-actions">
                                 <button class="primary-btn small" type="submit">Save profile</button>
+                                <button class="ghost-btn small" type="button" @click="closeProfileEditor">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div v-else class="profile-password-panel">
+                        <p class="muted">Answer your 3 security questions. At least 2 answers must match exactly.</p>
+                        <div v-if="!hasPasswordChangeQuestions" class="auth-form-grid">
+                            <button class="primary-btn auth-submit auth-submit--center" type="button" @click="loadMyPasswordSecurityQuestions">Load security questions</button>
+                        </div>
+                        <form v-else class="auth-form-grid" @submit.prevent="changeMyPasswordFromProfile">
+                            <label v-for="(question, index) in passwordChangeQuestions" :key="`profile-password-question-${index}`" class="auth-field--full">
+                                Security Question {{ index + 1 }}
+                                <input :value="question.questionText" type="text" readonly>
+                                <input v-model="passwordChangeAnswers[index]" type="text" autocomplete="off" placeholder="Enter your answer exactly as set">
+                            </label>
+                            <label>
+                                New Password
+                                <input v-model="passwordChangeNewPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+                            </label>
+                            <label>
+                                Confirm New Password
+                                <input v-model="passwordChangeConfirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter new password">
+                            </label>
+                            <div class="request-actions">
+                                <button class="primary-btn auth-submit" type="submit">Change password</button>
                                 <button class="ghost-btn small" type="button" @click="closeProfileEditor">Cancel</button>
                             </div>
                         </form>
@@ -741,6 +765,24 @@
             </div>
 
             <template v-else>
+                <section class="card admin-analytics-panel">
+                    <div class="section-head compact">
+                        <div>
+                            <p class="eyebrow dark">Activity Overview</p>
+                            <h3>Publishing and discussion trends</h3>
+                            <p class="muted">These charts help administrators understand recent archive growth and community interaction before reviewing articles and users.</p>
+                        </div>
+                    </div>
+                    <div class="admin-analytics-grid">
+                        <article class="chart-card">
+                            <div id="chart-posts" class="chart-surface" aria-label="Daily published stories chart"></div>
+                        </article>
+                        <article class="chart-card">
+                            <div id="chart-comments" class="chart-surface" aria-label="Discussion activity trends chart"></div>
+                        </article>
+                    </div>
+                </section>
+
                 <div class="admin-kpi-grid">
                     <button
                         v-for="card in adminKpiCards"
@@ -786,7 +828,6 @@
                                 <option value="PUBLISHED">Published</option>
                                 <option value="REJECTED">Rejected</option>
                                 <option value="ARCHIVED">Archived</option>
-                                <option value="DRAFT">Draft</option>
                             </select>
                             <select v-model="adminSortOption">
                                 <option value="UPDATED_DESC">Recently updated</option>
@@ -860,6 +901,7 @@
                         <div class="request-actions">
                             <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="primary-btn small" type="button" @click="approveSelectedAdminPost">Approve</button>
                             <button v-if="selectedAdminPost.status === 'PENDING_REVIEW'" class="ghost-btn small" type="button" @click="rejectSelectedAdminPost">Reject</button>
+                            <button v-if="selectedAdminPost.status === 'PUBLISHED'" class="ghost-btn small" type="button" @click="archiveSelectedAdminPost">Archive</button>
                             <button v-if="selectedAdminPost.status === 'ARCHIVED'" class="ghost-btn small" type="button" @click="restoreSelectedAdminPost">Restore</button>
                         </div>
                     </article>
@@ -874,6 +916,8 @@
                                 </div>
                                 <div class="admin-detail-modal__header-actions">
                                     <span class="status-chip" :class="statusClass(adminPreviewPost.status)">{{ statusLabel(adminPreviewPost.status) }}</span>
+                                    <button v-if="adminPreviewPost.status === 'PUBLISHED'" class="ghost-btn small" type="button" @click="archivePreviewAdminPost">Archive</button>
+                                    <button v-if="adminPreviewPost.status === 'ARCHIVED'" class="ghost-btn small" type="button" @click="restorePreviewAdminPost">Restore</button>
                                     <button class="ghost-btn small" type="button" @click="closeAdminPostPreview">Close</button>
                                 </div>
                             </div>
@@ -1059,7 +1103,7 @@
                                 ></textarea>
                             </label>
                             <p v-if="entry.rejectReason" class="mt-2"><strong>Rejection reason:</strong> {{ entry.rejectReason }}</p>
-                            <div class="request-actions mt-2">
+                            <div class="request-actions mt-2 contributor-review__actions">
                                 <button v-if="entry.status === 'PENDING'" class="primary-btn small" type="button" @click="approveContributorApplication(entry.id)">Approve</button>
                                 <button v-if="entry.status === 'PENDING'" class="ghost-btn small" type="button" @click="rejectContributorApplication(entry.id)">Reject</button>
                             </div>
@@ -1130,9 +1174,51 @@
                         <input v-model="loginForm.password" type="password" autocomplete="current-password" placeholder="Enter your password">
                     </label>
                     <button class="ghost-btn auth-submit" type="submit">Sign in</button>
+                    <div class="auth-link-row">
+                        <span>Forgot password?</span>
+                        <button class="auth-link-btn" type="button" @click="openPasswordRecoveryMode">Recover password</button>
+                    </div>
                     <p class="auth-panel__hint auth-link-row">
                         If you do not have an account yet,
                         <button class="auth-link-btn" type="button" @click="openRegisterMode">click here to register</button>
+                    </p>
+                </form>
+
+                <form v-else-if="authMode === 'recover'" class="card form-card auth-panel" @submit.prevent="resetPasswordBySecurityQuestions">
+                    <div>
+                        <p class="eyebrow dark">Password Recovery</p>
+                        <h3>Recover your password</h3>
+                        <p class="muted auth-panel__intro">Enter your username, answer your 3 security questions, then set a new password.</p>
+                    </div>
+
+                    <div v-if="!hasPasswordRecoveryQuestions" class="auth-form-grid">
+                        <label class="auth-field--full">
+                            Username
+                            <input ref="passwordRecoveryUsernameInput" v-model="passwordRecoveryLookupUsername" type="text" autocomplete="username" placeholder="Enter your username">
+                        </label>
+                        <button class="primary-btn auth-submit auth-submit--center" type="button" @click="loadPasswordRecoveryQuestions">Load security questions</button>
+                    </div>
+
+                    <div v-else class="auth-form-grid">
+                        <p class="auth-field--full muted">Recovering account: <strong>{{ passwordRecoveryUsername }}</strong></p>
+                        <label v-for="(question, index) in passwordRecoveryQuestions" :key="`recover-question-${index}`" class="auth-field--full">
+                            Security Question {{ index + 1 }}
+                            <input :value="question.questionText" type="text" readonly>
+                            <input v-model="passwordRecoveryAnswers[index]" type="text" autocomplete="off" placeholder="Enter your answer exactly as set">
+                        </label>
+                        <label>
+                            New Password
+                            <input v-model="passwordRecoveryNewPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters">
+                        </label>
+                        <label>
+                            Confirm New Password
+                            <input v-model="passwordRecoveryConfirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter new password">
+                        </label>
+                        <button class="primary-btn auth-submit auth-field--full" type="submit">Reset password</button>
+                    </div>
+
+                    <p class="auth-panel__hint auth-link-row">
+                        <button class="auth-link-btn" type="button" @click="openLoginMode">Back to sign in</button>
                     </p>
                 </form>
 
@@ -1140,7 +1226,7 @@
                     <div>
                         <p class="eyebrow dark">Registration</p>
                         <h3>Create an account</h3>
-                        <p class="muted auth-panel__intro">Use the updated registration fields here without leaving the main platform page.</p>
+                        <p class="muted auth-panel__intro">Use the updated registration fields here without leaving the main platform page. You must set exactly 3 security questions.</p>
                     </div>
 
                     <div class="auth-form-grid">
@@ -1168,6 +1254,19 @@
                             Confirm Password
                             <input v-model="registerForm.confirmPassword" type="password" autocomplete="new-password" placeholder="Re-enter your password">
                         </label>
+                        <div class="auth-field--full">
+                            <p class="auth-panel__hint">Security Questions (required, exactly 3)</p>
+                        </div>
+                        <template v-for="(question, index) in registerForm.securityQuestions" :key="`register-security-${index}`">
+                            <label>
+                                Security Question {{ index + 1 }}
+                                <input v-model="question.questionText" type="text" autocomplete="off" placeholder="Set your own question">
+                            </label>
+                            <label>
+                                Security Answer {{ index + 1 }}
+                                <input v-model="question.answer" type="text" autocomplete="off" placeholder="Set the exact answer">
+                            </label>
+                        </template>
                     </div>
 
                     <p class="auth-panel__hint auth-link-row">

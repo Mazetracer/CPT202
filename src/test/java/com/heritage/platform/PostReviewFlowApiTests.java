@@ -37,10 +37,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -126,14 +129,14 @@ class PostReviewFlowApiTests {
     }
 
     @Test
-    void currentUserCanViewOwnPostDetailAcrossAllStatuses() throws Exception {
+    void currentUserCanViewOwnPostDetailExceptArchived() throws Exception {
         List<Post> posts = List.of(
                 createPost(authorA, PostStatus.DRAFT),
                 createPost(authorA, PostStatus.REJECTED),
                 createPost(authorA, PostStatus.PENDING_REVIEW),
-                createPost(authorA, PostStatus.PUBLISHED),
-                createPost(authorA, PostStatus.ARCHIVED)
+                createPost(authorA, PostStatus.PUBLISHED)
         );
+        Post archived = createPost(authorA, PostStatus.ARCHIVED);
 
         for (Post post : posts) {
             mockMvc.perform(authorRequest(get("/api/my/posts/{postId}", post.getId()), authorA))
@@ -147,10 +150,33 @@ class PostReviewFlowApiTests {
                     .andExpect(jsonPath("$.data.imageUrls").isArray());
         }
 
+        mockMvc.perform(authorRequest(get("/api/my/posts/{postId}", archived.getId()), authorA))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false));
+
         Post draft = posts.getFirst();
         mockMvc.perform(get("/api/posts/{postId}", draft.getId()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void currentUserPostListHidesArchivedPosts() throws Exception {
+        Post draft = createPost(authorA, PostStatus.DRAFT);
+        Post published = createPost(authorA, PostStatus.PUBLISHED);
+        Post archived = createPost(authorA, PostStatus.ARCHIVED);
+
+        mockMvc.perform(authorRequest(get("/api/my/posts"), authorA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(content().string(containsString("\"id\":" + draft.getId())))
+                .andExpect(content().string(containsString("\"id\":" + published.getId())))
+                .andExpect(content().string(not(containsString("\"id\":" + archived.getId()))));
+
+        mockMvc.perform(authorRequest(get("/api/my/posts").param("status", "ARCHIVED"), authorA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test
@@ -462,6 +488,24 @@ class PostReviewFlowApiTests {
     }
 
     @Test
+    void adminArticleManagementCanSeeArchivedPosts() throws Exception {
+        Post archived = createPost(authorA, PostStatus.ARCHIVED, "Archived Admin Visible Article");
+
+        mockMvc.perform(adminRequest(get("/api/admin/posts").param("status", "ARCHIVED")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(archived.getId()))
+                .andExpect(jsonPath("$.data[0].status").value("ARCHIVED"));
+
+        mockMvc.perform(adminRequest(get("/api/admin/posts/{postId}", archived.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(archived.getId()))
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"));
+    }
+
+    @Test
     void restore_onlyAllowsArchivedToPublished() throws Exception {
         Post archived = createPost(authorA, PostStatus.ARCHIVED);
         Post draft = createPost(authorA, PostStatus.DRAFT);
@@ -542,6 +586,7 @@ class PostReviewFlowApiTests {
         Post pendingEmbroidery = createPost(authorA, PostStatus.PENDING_REVIEW, "Suzhou Embroidery Review");
         createPost(authorA, PostStatus.PUBLISHED, "Suzhou Embroidery Published");
         createPost(authorA, PostStatus.PENDING_REVIEW, "Kunqu Opera Notes");
+        createPost(authorA, PostStatus.DRAFT, "Suzhou Embroidery Draft");
 
         mockMvc.perform(adminRequest(get("/api/admin/posts").param("title", "embroidery")))
                 .andExpect(status().isOk())
@@ -559,6 +604,25 @@ class PostReviewFlowApiTests {
                 .andExpect(jsonPath("$.data[0].id").value(pendingEmbroidery.getId()))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING_REVIEW"))
                 .andExpect(jsonPath("$.data[0].title").value("Suzhou Embroidery Review"));
+    }
+
+    @Test
+    void adminArticleManagementHidesDraftsFromListAndDraftStatusFilter() throws Exception {
+        createPost(authorA, PostStatus.DRAFT, "Hidden Draft Article");
+        Post published = createPost(authorA, PostStatus.PUBLISHED, "Visible Published Article");
+        Post pending = createPost(authorA, PostStatus.PENDING_REVIEW, "Visible Pending Article");
+
+        mockMvc.perform(adminRequest(get("/api/admin/posts")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(2))
+                .andExpect(jsonPath("$.data[0].id").value(pending.getId()))
+                .andExpect(jsonPath("$.data[1].id").value(published.getId()));
+
+        mockMvc.perform(adminRequest(get("/api/admin/posts").param("status", "DRAFT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(0));
     }
 
     @Test
@@ -595,15 +659,14 @@ class PostReviewFlowApiTests {
         Post reviewedOlder = createPost(authorA, PostStatus.PUBLISHED, "Reviewed Older");
         Thread.sleep(5L);
         Post reviewedNewer = createPost(authorA, PostStatus.REJECTED, "Reviewed Newer");
-        Post unreviewedDraft = createPost(authorA, PostStatus.DRAFT, "Unreviewed Draft");
+        createPost(authorA, PostStatus.DRAFT, "Unreviewed Draft");
 
         mockMvc.perform(adminRequest(get("/api/admin/posts").param("sort", "REVIEWED_DESC")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].id").value(reviewedNewer.getId()))
                 .andExpect(jsonPath("$.data[1].id").value(reviewedOlder.getId()))
-                .andExpect(jsonPath("$.data[2].id").value(unreviewedDraft.getId()))
-                .andExpect(jsonPath("$.data[2].reviewedAt").isEmpty());
+                .andExpect(content().string(not(containsString("\"status\":\"DRAFT\""))));
     }
 
     @Test
@@ -611,43 +674,40 @@ class PostReviewFlowApiTests {
         Post alphaPendingOlder = createPost(authorA, PostStatus.PENDING_REVIEW, "Paged Alpha Older");
         Thread.sleep(5L);
         Post alphaPendingNewer = createPost(authorA, PostStatus.PENDING_REVIEW, "Paged Alpha Newer");
-        createPost(authorA, PostStatus.PUBLISHED, "Paged Alpha Published");
+        Post alphaPublished = createPost(authorA, PostStatus.PUBLISHED, "Paged Alpha Published");
+        createPost(authorA, PostStatus.DRAFT, "Paged Alpha Draft");
 
         mockMvc.perform(adminRequest(get("/api/admin/posts")
-                        .param("status", "PENDING_REVIEW")
                         .param("title", "Paged Alpha")
-                        .param("sort", "SUBMITTED_DESC")
+                        .param("sort", "UPDATED_DESC")
                         .param("page", "0")
                         .param("size", "1")))
                 .andExpect(status().isOk())
                 .andExpect(header().string("X-Page", "0"))
                 .andExpect(header().string("X-Size", "1"))
-                .andExpect(header().string("X-Total-Elements", "2"))
-                .andExpect(header().string("X-Total-Pages", "2"))
+                .andExpect(header().string("X-Total-Elements", "3"))
+                .andExpect(header().string("X-Total-Pages", "3"))
                 .andExpect(header().string("X-Has-Previous", "false"))
                 .andExpect(header().string("X-Has-Next", "true"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].id").value(alphaPendingNewer.getId()))
-                .andExpect(jsonPath("$.data[0].status").value("PENDING_REVIEW"));
+                .andExpect(jsonPath("$.data[0].id").value(alphaPublished.getId()));
 
         mockMvc.perform(adminRequest(get("/api/admin/posts")
-                        .param("status", "PENDING_REVIEW")
                         .param("title", "Paged Alpha")
-                        .param("sort", "SUBMITTED_DESC")
-                        .param("page", "1")
+                        .param("sort", "UPDATED_DESC")
+                        .param("page", "2")
                         .param("size", "1")))
                 .andExpect(status().isOk())
-                .andExpect(header().string("X-Page", "1"))
+                .andExpect(header().string("X-Page", "2"))
                 .andExpect(header().string("X-Size", "1"))
-                .andExpect(header().string("X-Total-Elements", "2"))
-                .andExpect(header().string("X-Total-Pages", "2"))
+                .andExpect(header().string("X-Total-Elements", "3"))
+                .andExpect(header().string("X-Total-Pages", "3"))
                 .andExpect(header().string("X-Has-Previous", "true"))
                 .andExpect(header().string("X-Has-Next", "false"))
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].id").value(alphaPendingOlder.getId()))
-                .andExpect(jsonPath("$.data[0].status").value("PENDING_REVIEW"));
+                .andExpect(jsonPath("$.data[0].id").value(alphaPendingOlder.getId()));
     }
 
     @Test
@@ -766,6 +826,38 @@ class PostReviewFlowApiTests {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.message").value("Users cannot be promoted to administrator here."));
+    }
+
+    @Test
+    void adminRolePromotionAlsoApprovesPendingContributorApplication() throws Exception {
+        ContributorApplication pending = contributorApplicationRepository.saveAndFlush(
+                ContributorApplication.create(authorA, "Test application reason", null)
+        );
+
+        mockMvc.perform(adminRequest(post("/api/admin/users/{userId}/role", authorA.getId()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(payload("role", "CONTRIBUTOR"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(authorA.getId()))
+                .andExpect(jsonPath("$.data.role").value("CONTRIBUTOR"));
+
+        assertThat(userRepository.findById(authorA.getId()).orElseThrow().getRole()).isEqualTo(UserRole.CONTRIBUTOR);
+
+        ContributorApplication approved = contributorApplicationRepository.findById(pending.getId()).orElseThrow();
+        assertThat(approved.getStatus()).isEqualTo(ContributorApplicationStatus.APPROVED);
+        assertThat(approved.getReviewedAt()).isNotNull();
+        assertThat(approved.getReviewedBy()).isNotNull();
+        assertThat(approved.getReviewedBy().getId()).isEqualTo(admin.getId());
+
+        mockMvc.perform(authorRequest(get("/api/my/contributor-applications"), authorA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].id").value(pending.getId()))
+                .andExpect(jsonPath("$.data[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.data[0].reviewedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data[0].reviewerName").value(admin.getNickname()));
     }
 
     @Test

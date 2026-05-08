@@ -111,6 +111,10 @@ public class User extends BaseTimeEntity {
         return bio;
     }
 
+    public void updatePasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public void updateProfile(String nickname, String avatarUrl, String bio) {
         this.nickname = nickname;
         this.avatarUrl = avatarUrl;
