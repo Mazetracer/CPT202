@@ -25,7 +25,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     @EntityGraph(attributePaths = {"author", "category", "reviewedBy"})
     @Query("""
-            select distinct p
+            select p
             from Post p
             join p.author a
             join p.category c
